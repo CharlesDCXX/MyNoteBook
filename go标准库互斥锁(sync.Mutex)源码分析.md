@@ -1,4 +1,4 @@
-﻿# sync.Mutex源码分析
+# sync.Mutex源码分析
 
 [sync.Mutex](https://pkg.go.dev/sync#Mutex)是Go标准库中常用的一个排外锁。当一个 goroutine 获得了这个锁的拥有权后， 其它请求锁的 goroutine 就会阻塞在 Lock 方法的调用上，直到锁被释放。
 
