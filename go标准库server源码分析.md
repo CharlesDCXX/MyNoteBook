@@ -1,4 +1,4 @@
-# go 启动 server 服务接收 http 连接
+﻿# go 启动 server 服务接收 http 连接(UTF-8 with BOM)
 
 ## 启动 Servers
 

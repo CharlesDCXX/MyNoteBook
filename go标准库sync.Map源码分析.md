@@ -1,4 +1,4 @@
-# sync.Map源码分析
+﻿# sync.Map源码分析(UTF-8 with BOM)
 
 原生的 Go Map 在并发读写场景下经常会遇到 panic 的情况。造成的原因是 map 是非线性安全的，并发读写过程中 map 的数据会被写乱。
 
