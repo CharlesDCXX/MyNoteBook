@@ -1,4 +1,4 @@
-# map源码分析(UTF-8)
+﻿# map源码分析(UTF-8 with BOM)
 
 go中 map 类似于 java 的 HashMap，Python的字典(dict)，是一种存储键值对(Key-Value)的数据解构。使用方式和其他语言几乎没有区别。
 
