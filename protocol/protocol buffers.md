@@ -1,4 +1,4 @@
-# protocol buffers定义
+# [protocol buffers定义](https://protobuf.dev/getting-started/gotutorial/)
 
 协议缓冲区是 Google 用于序列化结构化数据的语言中立、平台中立、可扩展的机制 - 想想 XML，但更小、更快、更简单。 您只需定义一次数据的结构化方式，然后就可以使用特殊生成的源代码，使用各种语言轻松地在各种数据流中写入和读取结构化数据。
 
@@ -88,3 +88,52 @@ message AddressBook {
 ```bash
 protoc -I=./protocol --go_out=./protocol ./protocol/addressbook.proto
 ```
+
+### The Protocol Buffer API
+Generating addressbook.pb.go gives you the following useful types:
+
+An AddressBook structure with a People field.
+A Person structure with fields for Name, Id, Email and Phones.
+A Person_PhoneNumber structure, with fields for Number and Type.
+The type Person_PhoneType and a value defined for each value in the Person.PhoneType enum.
+You can read more about the details of exactly what’s generated in the Go Generated Code guide, but for the most part you can treat these as perfectly ordinary Go types.
+
+Here’s an example from the list_people command’s unit tests of how you might create an instance of Person:
+```go
+p := pb.Person{
+    Id:    1234,
+    Name:  "John Doe",
+    Email: "jdoe@example.com",
+    Phones: []*pb.Person_PhoneNumber{
+        {Number: "555-4321", Type: pb.Person_PHONE_TYPE_HOME},
+    },
+}
+```
+
+### Writing a Message
+The whole purpose of using protocol buffers is to serialize your data so that it can be parsed elsewhere. In Go, you use the proto library’s Marshal function to serialize your protocol buffer data. A pointer to a protocol buffer message’s struct implements the proto.Message interface. Calling proto.Marshal returns the protocol buffer, encoded in its wire format. For example, we use this function in the add_person command:
+```go
+book := &pb.AddressBook{}
+// ...
+
+// Write the new address book back to disk.
+out, err := proto.Marshal(book)
+if err != nil {
+    log.Fatalln("Failed to encode address book:", err)
+}
+if err := ioutil.WriteFile(fname, out, 0644); err != nil {
+    log.Fatalln("Failed to write address book:", err)
+}
+```
+### Reading a Message
+To parse an encoded message, you use the proto library’s Unmarshal function. Calling this parses the data in in as a protocol buffer and places the result in book. So to parse the file in the list_people command, we use:
+
+// Read the existing address book.
+in, err := ioutil.ReadFile(fname)
+if err != nil {
+    log.Fatalln("Error reading file:", err)
+}
+book := &pb.AddressBook{}
+if err := proto.Unmarshal(in, book); err != nil {
+    log.Fatalln("Failed to parse address book:", err)
+}

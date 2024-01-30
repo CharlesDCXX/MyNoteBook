@@ -17,7 +17,7 @@ message Person {
   
     google.protobuf.Timestamp last_updated = 5;
   }
-  
+
   enum PhoneType {
     PHONE_TYPE_UNSPECIFIED = 0;
     PHONE_TYPE_MOBILE = 1;
