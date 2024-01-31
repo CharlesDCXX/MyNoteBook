@@ -85,4 +85,6 @@ message AddressBook {
 
 如果字段重复，则该字段可以重复任意次数（包括零次）。 重复值的顺序将保留在协议缓冲区中。 将重复字段视为动态大小的数组。
 
+```bash
 protoc -I=./protocol --go_out=./protocol ./protocol/addressbook.proto
+```
