@@ -87,6 +87,7 @@ message AddressBook {
 
 ```bash
 protoc -I=./protocol --go_out=./protocol ./protocol/addressbook.proto
+<<<<<<< HEAD
 ```
 
 ### The Protocol Buffer API
@@ -137,3 +138,6 @@ book := &pb.AddressBook{}
 if err := proto.Unmarshal(in, book); err != nil {
     log.Fatalln("Failed to parse address book:", err)
 }
+=======
+```
+>>>>>>> e231a1dcc971330cd0c0a70e9b26eb0626c2c457
