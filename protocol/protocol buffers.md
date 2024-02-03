@@ -87,7 +87,6 @@ message AddressBook {
 
 ```bash
 protoc -I=./protocol --go_out=./protocol ./protocol/addressbook.proto
-<<<<<<< HEAD
 ```
 
 ### The Protocol Buffer API
@@ -100,6 +99,7 @@ The type Person_PhoneType and a value defined for each value in the Person.Phone
 You can read more about the details of exactly what’s generated in the Go Generated Code guide, but for the most part you can treat these as perfectly ordinary Go types.
 
 Here’s an example from the list_people command’s unit tests of how you might create an instance of Person:
+
 ```go
 p := pb.Person{
     Id:    1234,
@@ -126,10 +126,13 @@ if err := ioutil.WriteFile(fname, out, 0644); err != nil {
     log.Fatalln("Failed to write address book:", err)
 }
 ```
+
 ### Reading a Message
 To parse an encoded message, you use the proto library’s Unmarshal function. Calling this parses the data in in as a protocol buffer and places the result in book. So to parse the file in the list_people command, we use:
 
 // Read the existing address book.
+
+```go
 in, err := ioutil.ReadFile(fname)
 if err != nil {
     log.Fatalln("Error reading file:", err)
@@ -138,6 +141,4 @@ book := &pb.AddressBook{}
 if err := proto.Unmarshal(in, book); err != nil {
     log.Fatalln("Failed to parse address book:", err)
 }
-=======
 ```
->>>>>>> e231a1dcc971330cd0c0a70e9b26eb0626c2c457
