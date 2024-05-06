@@ -1,0 +1,2204 @@
+<!DOCTYPE html>
+<!-- saved from url=(0053)https://www.ququ123.top/2022/04/golang_map_principle/ -->
+<html lang="en-us" data-scheme="light"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1"><meta name="description" content="原文链接，转载请注明出处 这篇文章主要讲 map 的赋值、删除、查询、扩容的具体执行过程，仍然是从底层的角度展开。结合源码，看完本文一定会彻底明白 map 底"><title>【golang】map 详解</title>
+
+<link rel="canonical" href="http://www.ququ123.top/2022/04/golang_map_principle/">
+
+<link rel="stylesheet" href="./【golang】map 详解_files/style.min.46208cabd58e8bcef0cfb7d7ea6b561adcca3b91dd1fc6657493a44f03c5db75.css"><script src="./【golang】map 详解_files/pangu.min.js"></script><script src="./【golang】map 详解_files/hm.js"></script><script>
+    document.addEventListener("DOMContentLoaded", function() {
+        renderMathInElement(document.body, {
+            delimiters: [
+                {left: "$$", right: "$$", display: true},
+                {left: "$", right: "$", display: false}
+            ]
+        });
+    });
+</script><meta property="og:title" content="【golang】map详解">
+<meta property="og:description" content="原文链接，转载请注明出处 这篇文章主要讲 map 的赋值、删除、查询、扩容的具体执行过程，仍然是从底层的角度展开。结合源码，看完本文一定会彻底明白 map 底">
+<meta property="og:url" content="http://www.ququ123.top/2022/04/golang_map_principle/">
+<meta property="og:site_name" content="代码与历史">
+<meta property="og:type" content="article"><meta property="article:section" content="Post"><meta property="article:published_time" content="2022-04-01T00:00:00+00:00"><meta property="article:modified_time" content="2022-04-01T00:00:00+00:00"><meta property="og:image" content="https://img.ququ123.top/img/u=1862939405,1689361694&amp;fm=253&amp;fmt=auto&amp;app=138&amp;f=JPEG">
+<meta name="twitter:title" content="【golang】map详解">
+<meta name="twitter:description" content="原文链接，转载请注明出处 这篇文章主要讲 map 的赋值、删除、查询、扩容的具体执行过程，仍然是从底层的角度展开。结合源码，看完本文一定会彻底明白 map 底"><meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:image" content="https://img.ququ123.top/img/u=1862939405,1689361694&amp;fm=253&amp;fmt=auto&amp;app=138&amp;f=JPEG">
+
+<link rel="shortcut icon" href="https://www.ququ123.top/2022/04/golang_map_principle/favicon.ico">
+
+
+    <link rel="shortcut icon" href="https://www.ququ123.top/2022/04/golang_map_principle/img/avatar.png">
+<script>
+var _hmt = _hmt || [];
+(function() {
+  var hm = document.createElement("script");
+  hm.src = "https://hm.baidu.com/hm.js?315f9dbf10ef402a385430f08eb1c383";
+  var s = document.getElementsByTagName("script")[0]; 
+  s.parentNode.insertBefore(hm, s);
+})();
+</script>
+
+<script async="" src="./【golang】map 详解_files/busuanzi.pure.mini.js"></script>
+<script defer="" src="./【golang】map 详解_files/script.js" data-website-id="d501d708-5722-4653-be01-e0919e4163fd"></script><script src="./【golang】map 详解_files/autoload.js"></script><link rel="stylesheet" href="./【golang】map 详解_files/waifu.css"><script src="./【golang】map 详解_files/live2d.min.js"></script><script src="./【golang】map 详解_files/waifu-tips.js"></script>
+
+    <link href="./【golang】map 详解_files/css2" type="text/css" rel="stylesheet"><style id="waline-darkmode"></style></head>
+    <body class="
+    article-page
+" style="transition: background-color 0.3s ease 0s;">
+    <script>
+        (function() {
+            const colorSchemeKey = 'StackColorScheme';
+            if(!localStorage.getItem(colorSchemeKey)){
+                localStorage.setItem(colorSchemeKey, "auto");
+            }
+        })();
+    </script><script>
+    (function() {
+        const colorSchemeKey = 'StackColorScheme';
+        const colorSchemeItem = localStorage.getItem(colorSchemeKey);
+        const supportDarkMode = window.matchMedia('(prefers-color-scheme: dark)').matches === true;
+
+        if (colorSchemeItem == 'dark' || colorSchemeItem === 'auto' && supportDarkMode) {
+            
+
+            document.documentElement.dataset.scheme = 'dark';
+        } else {
+            document.documentElement.dataset.scheme = 'light';
+        }
+    })();
+</script>
+<div class="container main-container flex 
+    &lt;!-- 
+        extended
+     --&gt;
+    on-phone--column extended
+">
+    
+<div id="article-toolbar">
+    <a href="http://www.ququ123.top/" class="back-home">
+        <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-chevron-left" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"></path>
+  <polyline points="15 6 9 12 15 18"></polyline>
+</svg>
+
+
+
+        <span>返回</span>
+    </a>
+</div>
+    <aside class="sidebar left-sidebar sticky">
+    <button class="hamburger hamburger--spin" type="button" id="toggle-menu" aria-label="切换菜单">
+        <span class="hamburger-box">
+            <span class="hamburger-inner"></span>
+        </span>
+    </button>
+
+    <header class="site-info">
+        
+            
+            <figure class="site-avatar">
+                <a href="https://www.ququ123.top/">
+                
+                    
+                    
+                    
+                        
+                        <img src="./【golang】map 详解_files/avatar_hu2f3b8fee1771f62c9935407d819741ec_30389_300x0_resize_box_3.png" width="300" height="300" class="site-logo" loading="lazy" alt="Avatar">
+                    
+                
+                </a>
+                
+                    <span class="emoji">🍥</span>
+                
+            </figure>
+            
+        
+        
+        <h1 class="site-name"><a href="https://www.ququ123.top/">代码与历史</a></h1>
+        <h2 class="site-description">No code, no talk.</h2><ol class="social-menu">
+                
+                    <li>
+                        <a href="https://github.com/zhulingbiezhi" target="_blank" title="GitHub">
+                            
+                            
+                                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-brand-github" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z" fill="none"></path>
+  <path d="M9 19c-4.3 1.4 -4.3 -2.5 -6 -3m12 5v-3.5c0 -1 .1 -1.4 -.5 -2c2.8 -.3 5.5 -1.4 5.5 -6a4.6 4.6 0 0 0 -1.3 -3.2a4.2 4.2 0 0 0 -.1 -3.2s-1.1 -.3 -3.5 1.3a12.3 12.3 0 0 0 -6.2 0c-2.4 -1.6 -3.5 -1.3 -3.5 -1.3a4.2 4.2 0 0 0 -.1 3.2a4.6 4.6 0 0 0 -1.3 3.2c0 4.6 2.7 5.7 5.5 6c-.6 .6 -.6 1.2 -.5 2v3.5"></path>
+</svg>
+
+
+
+                            
+                        </a>
+                    </li>
+                
+            </ol></header>
+
+    <ol class="menu" id="main-menu">
+        
+        
+        
+
+        <li>
+            <a href="https://www.ququ123.top/">
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-home" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"></path>
+  <polyline points="5 12 3 12 12 3 21 12 19 12"></polyline>
+  <path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-7"></path>
+  <path d="M9 21v-6a2 2 0 0 1 2 -2h2a2 2 0 0 1 2 2v6"></path>
+</svg>
+
+
+
+                
+                <span>Home</span>
+            </a>
+        </li>
+        
+        
+
+        <li>
+            <a href="https://www.ququ123.top/links/">
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-home" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"></path>
+  <polyline points="5 12 3 12 12 3 21 12 19 12"></polyline>
+  <path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-7"></path>
+  <path d="M9 21v-6a2 2 0 0 1 2 -2h2a2 2 0 0 1 2 2v6"></path>
+</svg>
+
+
+
+                
+                <span>Friends</span>
+            </a>
+        </li>
+        
+        
+
+        <li>
+            <a href="https://www.ququ123.top/%E5%85%B3%E4%BA%8E/">
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-user" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"></path>
+  <circle cx="12" cy="7" r="4"></circle>
+  <path d="M6 21v-2a4 4 0 0 1 4 -4h4a4 4 0 0 1 4 4v2"></path>
+</svg>
+
+
+
+                
+                <span> 关于</span>
+            </a>
+        </li>
+        
+        
+
+        <li>
+            <a href="https://www.ququ123.top/archives/">
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-archive" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"></path>
+  <rect x="3" y="4" width="18" height="4" rx="2"></rect>
+  <path d="M5 8v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-10"></path>
+  <line x1="10" y1="12" x2="14" y2="12"></line>
+</svg>
+
+
+
+                
+                <span> Archives</span>
+            </a>
+        </li>
+        
+        
+
+        <li>
+            <a href="https://www.ququ123.top/search/">
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-search" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"></path>
+  <circle cx="10" cy="10" r="7"></circle>
+  <line x1="21" y1="21" x2="15" y2="15"></line>
+</svg>
+
+
+
+                
+                <span>Search</span>
+            </a>
+        </li>
+        
+
+        
+            <li id="dark-mode-toggle">
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-toggle-left" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"></path>
+  <circle cx="8" cy="12" r="2"></circle>
+  <rect x="2" y="6" width="20" height="12" rx="6"></rect>
+</svg>
+
+
+
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-toggle-right" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"></path>
+  <circle cx="16" cy="12" r="2"></circle>
+  <rect x="2" y="6" width="20" height="12" rx="6"></rect>
+</svg>
+
+
+
+                <span> 暗色模式</span>
+            </li>
+        
+    </ol>
+</aside>
+
+<main class="main full-width">
+    <article class="has-image main-article">
+    <header class="article-header">
+        <div class="article-image">
+            <a href="https://www.ququ123.top/2022/04/golang_map_principle/">
+                
+                    <img src="./【golang】map 详解_files/u=1862939405,1689361694&amp;fm=253&amp;fmt=auto&amp;app=138&amp;f=JPEG" loading="lazy" alt="Featured image of post 【golang】map详解">
+                
+            </a>
+        </div>  
+    
+
+    <div class="article-details">
+    
+    <header class="article-category">
+        
+            <a href="https://www.ququ123.top/categories/golang/" style="background-color: #2a9d8f; color: #fff;">
+                golang
+            </a>
+        
+    </header>
+    
+
+    <h2 class="article-title">
+        <a href="https://www.ququ123.top/2022/04/golang_map_principle/">【golang】map 详解</a>
+    </h2>
+
+    
+
+    
+    <footer class="article-time">
+        
+            <div>
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-calendar-time" width="56" height="56" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"></path>
+  <path d="M11.795 21h-6.795a2 2 0 0 1 -2 -2v-12a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v4"></path>
+  <circle cx="18" cy="18" r="4"></circle>
+  <path d="M15 3v4"></path>
+  <path d="M7 3v4"></path>
+  <path d="M3 11h16"></path>
+  <path d="M18 16.496v1.504l1 1"></path>
+</svg>
+                <time class="article-time--published"> 2022 年 04 月 01 日</time>
+            </div>
+        
+
+        
+            <div>
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-clock" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"></path>
+  <circle cx="12" cy="12" r="9"></circle>
+  <polyline points="12 7 12 12 15 15"></polyline>
+</svg>
+
+
+
+                <time class="article-words">
+                    19696 字
+                </time>
+            </div>
+        
+    </footer>
+    
+</div>
+</header>
+
+    <section class="article-content">
+<a href="https://www.digitalocean.com/?refcode=6c62bac11425&amp;utm_campaign=Referral_Invite&amp;utm_medium=Referral_Program&amp;utm_source=badge"><img src="./【golang】map 详解_files/Badge 1.svg" alt="DigitalOcean Referral Badge"></a>
+<a href="https://www.digitalocean.com/?refcode=6c62bac11425&amp;utm_campaign=Referral_Invite&amp;utm_medium=Referral_Program&amp;utm_source=badge"><img src="./【golang】map 详解_files/Badge 3.svg" alt="DigitalOcean Referral Badge"></a>
+<a href="https://www.digitalocean.com/?refcode=6c62bac11425&amp;utm_campaign=Referral_Invite&amp;utm_medium=Referral_Program&amp;utm_source=badge"><img src="./【golang】map 详解_files/Badge 2.svg" alt="DigitalOcean Referral Badge"></a> 
+
+    
+    
+    <p><a class="link" href="https://www.ququ123.top/2024/03/ququ-blog" target="_blank" rel="noopener">原文链接，转载请注明出处</a></p>
+<p>这篇文章主要讲 map 的赋值、删除、查询、扩容的具体执行过程，仍然是从底层的角度展开。结合源码，看完本文一定会彻底明白 map 底层原理。</p>
+<p>我要说明的是，这里对 map 的基本用法涉及比较少，我相信可以通过阅读其他入门书籍了解。本文的内容比较深入，但是由于我画了各种图，我相信很容易看懂。</p>
+<h2 id="什么是-map">什么是 map</h2>
+<p>维基百科里这样定义 map：</p>
+<blockquote>
+<p>In computer science, an associative array, map, symbol table, or dictionary is an abstract data type composed of a collection of (key, value) pairs, such that each possible key appears at most once in the collection.</p>
+</blockquote>
+<p>简单说明一下：在计算机科学里，被称为相关数组、map、符号表或者字典，是由一组 <code>&lt;key, value&gt;</code> 对组成的抽象数据结构，并且同一个 key 只会出现一次。</p>
+<p>有两个关键点：map 是由 <code>key-value</code> 对组成的；<code>key</code> 只会出现一次。</p>
+<p>和 map 相关的操作主要是：</p>
+<ol>
+<li>增加一个 k-v 对 —— Add or insert；</li>
+<li>删除一个 k-v 对 —— Remove or delete；</li>
+<li>修改某个 k 对应的 v —— Reassign；</li>
+<li>查询某个 k 对应的 v —— Lookup；</li>
+</ol>
+<p>简单说就是最基本的 <code>增删查改</code>。</p>
+<p>map 的设计也被称为 “The dictionary problem”，它的任务是设计一种数据结构用来维护一个集合的数据，并且可以同时对集合进行增删查改的操作。最主要的数据结构有两种：<code>哈希查找表（Hash table）</code>、<code>搜索树（Search tree）</code>。</p>
+<p>哈希查找表用一个哈希函数将 key 分配到不同的桶（bucket，也就是数组的不同 index）。这样，开销主要在哈希函数的计算以及数组的常数访问时间。在很多场景下，哈希查找表的性能很高。</p>
+<p>哈希查找表一般会存在 “碰撞” 的问题，就是说不同的 key 被哈希到了同一个 bucket。一般有两种应对方法：<code>链表法</code>和<code>开放地址法</code>。<code>链表法</code>将一个 bucket 实现成一个链表，落在同一个 bucket 中的 key 都会插入这个链表。<code>开放地址法</code>则是碰撞发生后，通过一定的规律，在数组的后面挑选 “空位”，用来放置新的 key。</p>
+<p>搜索树法一般采用自平衡搜索树，包括：AVL 树，红黑树。面试时经常会被问到，甚至被要求手写红黑树代码，很多时候，面试官自己都写不上来，非常过分。</p>
+<p>自平衡搜索树法的最差搜索效率是 O(logN)，而哈希查找表最差是 O(N)。当然，哈希查找表的平均查找效率是 O(1)，如果哈希函数设计的很好，最坏的情况基本不会出现。还有一点，遍历自平衡搜索树，返回的 key 序列，一般会按照从小到大的顺序；而哈希查找表则是乱序的。</p>
+<h2 id="为什么要用-map">为什么要用 map</h2>
+<p>从 Go 语言官方博客摘录一段话：</p>
+<blockquote>
+<p>One of the most useful data structures in computer science is the hash table. Many hash table implementations exist with varying properties, but in general they offer fast lookups, adds, and deletes. Go provides a built-in map type that implements a hash table.</p>
+</blockquote>
+<p>hash table 是计算机数据结构中一个最重要的设计。大部分 hash table 都实现了快速查找、添加、删除的功能。Go 语言内置的 map 实现了上述所有功能。</p>
+<p>很难想象写一个程序不使用 map，以至于在回答为什么要用 map 这个问题上犯了难。</p>
+<p>所以，到底为什么要用 map 呢？因为它太强大了，各种增删查改的操作效率非常高。</p>
+<h2 id="map-的底层如何实现">map 的底层如何实现</h2>
+<p>首先声明我用的 Go 版本：</p>
+<pre><code class="language-go">    go version go1.9.2 darwin/amd64
+</code></pre>
+<p>前面说了 map 实现的几种方案，Go 语言采用的是哈希查找表，并且使用链表解决哈希冲突。</p>
+<p>接下来我们要探索 map 的核心原理，一窥它的内部结构。</p>
+<h2 id="map-内存模型">map 内存模型</h2>
+<p>在源码中，表示 map 的结构体是 hmap，它是 hashmap 的 “缩写”：</p>
+<pre><code class="language-go">    // A header for a Go map.
+    type hmap struct {
+        // 元素个数，调用 len(map) 时，直接返回此值
+    	count     int
+    	flags     uint8
+    	// buckets 的对数 log_2
+    	B         uint8
+    	// overflow 的 bucket 近似数
+    	noverflow uint16
+    	// 计算 key 的哈希的时候会传入哈希函数
+    	hash0     uint32
+        // 指向 buckets 数组，大小为 2^B
+        // 如果元素个数为0，就为 nil
+    	buckets    unsafe.Pointer
+    	// 扩容的时候，buckets 长度会是 oldbuckets 的两倍
+    	oldbuckets unsafe.Pointer
+    	// 指示扩容进度，小于此地址的 buckets 迁移完成
+    	nevacuate  uintptr
+    	extra *mapextra // optional fields
+    }
+</code></pre>
+<p>说明一下，<code>B</code> 是 buckets 数组的长度的对数，也就是说 buckets 数组的长度就是 2^B。bucket 里面存储了 key 和 value，后面会再讲。</p>
+<p>buckets 是一个指针，最终它指向的是一个结构体：</p>
+<pre><code class="language-go">    type bmap struct {
+    	tophash [bucketCnt]uint8
+    }
+</code></pre>
+<p>但这只是表面 (src/runtime/hashmap.go) 的结构，编译期间会给它加料，动态地创建一个新的结构：</p>
+<pre><code class="language-go">    type bmap struct {
+        topbits  [8]uint8
+        keys     [8]keytype
+        values   [8]valuetype
+        pad      uintptr
+        overflow uintptr
+    }
+</code></pre>
+<p><code>bmap</code> 就是我们常说的 “桶”，桶里面会最多装 8 个 key，这些 key 之所以会落入同一个桶，是因为它们经过哈希计算后，哈希结果是“一类” 的。在桶内，又会根据 key 计算出来的 hash 值的高 8 位来决定 key 到底落入桶内的哪个位置（一个桶内最多有 8 个位置）。</p>
+<p>来一个整体的图：</p>
+<p></p><figure>
+	<a href="./【golang】map 详解_files/57576986-acd87600-749f-11e9-8710-75e423c7efdb.png">
+		<img src="./【golang】map 详解_files/57576986-acd87600-749f-11e9-8710-75e423c7efdb.png" loading="lazy" alt="hashmap bmap">
+	</a>
+	
+	<figcaption>hashmap bmap</figcaption>
+	
+</figure><p></p>
+<p>当 map 的 key 和 value 都不是指针，并且 size 都小于 128 字节的情况下，会把 bmap 标记为不含指针，这样可以避免 gc 时扫描整个 hmap。但是，我们看 bmap 其实有一个 overflow 的字段，是指针类型的，破坏了 bmap 不含指针的设想，这时会把 overflow 移动到 extra 字段来。</p>
+<pre><code class="language-go">    type mapextra struct {
+    	// overflow[0] contains overflow buckets for hmap.buckets.
+    	// overflow[1] contains overflow buckets for hmap.oldbuckets.
+    	overflow [2]*[]*bmap
+    
+    	// nextOverflow 包含空闲的 overflow bucket，这是预分配的 bucket
+    	nextOverflow *bmap
+    }
+</code></pre>
+<p>bmap 是存放 k-v 的地方，我们把视角拉近，仔细看 bmap 的内部组成。</p>
+<p></p><figure>
+	<a href="./【golang】map 详解_files/57577391-f88f1d80-74a7-11e9-893c-4783dc4fb35e.png">
+		<img src="./【golang】map 详解_files/57577391-f88f1d80-74a7-11e9-893c-4783dc4fb35e.png" loading="lazy" alt="bmap struct">
+	</a>
+	
+	<figcaption>bmap struct</figcaption>
+	
+</figure><p></p>
+<p>上图就是 bucket 的内存模型，<code>HOB Hash</code> 指的就是 top hash。 注意到 key 和 value 是各自放在一起的，并不是 <code>key/value/key/value/...</code> 这样的形式。源码里说明这样的好处是在某些情况下可以省略掉 padding 字段，节省内存空间。</p>
+<p>例如，有这样一个类型的 map：</p>
+<pre><code class="language-go">    map[int64]int8
+</code></pre>
+<p>如果按照 <code>key/value/key/value/...</code> 这样的模式存储，那在每一个 key/value 对之后都要额外 padding 7 个字节；而将所有的 key，value 分别绑定到一起，这种形式 <code>key/key/.../value/value/...</code>，则只需要在最后添加 padding。</p>
+<p>每个 bucket 设计成最多只能放 8 个 key-value 对，如果有第 9 个 key-value 落入当前的 bucket，那就需要再构建一个 bucket ，通过 <code>overflow</code> 指针连接起来。</p>
+<h2 id="创建-map">创建 map</h2>
+<p>从语法层面上来说，创建 map 很简单：</p>
+<pre><code class="language-go">    ageMp := make(map[string]int)
+    // 指定 map 长度
+    ageMp := make(map[string]int, 8)
+    
+    // ageMp 为 nil，不能向其添加元素，会直接panic
+    var ageMp map[string]int
+</code></pre>
+<p>通过汇编语言可以看到，实际上底层调用的是 <code>makemap</code> 函数，主要做的工作就是初始化 <code>hmap</code> 结构体的各种字段，例如计算 B 的大小，设置哈希种子 hash0 等等。</p>
+<pre><code class="language-go">    func makemap(t *maptype, hint int64, h *hmap, bucket unsafe.Pointer) *hmap {
+    	// 省略各种条件检查...
+    
+    	// 找到一个 B，使得 map 的装载因子在正常范围内
+    	B := uint8(0)
+    	for ; overLoadFactor(hint, B); B++ {
+    	}
+    
+    	// 初始化 hash table
+    	// 如果 B 等于 0，那么 buckets 就会在赋值的时候再分配
+    	// 如果长度比较大，分配内存会花费长一点
+    	buckets := bucket
+    	var extra *mapextra
+    	if B != 0 {
+    		var nextOverflow *bmap
+    		buckets, nextOverflow = makeBucketArray(t, B)
+    		if nextOverflow != nil {
+    			extra = new(mapextra)
+    			extra.nextOverflow = nextOverflow
+    		}
+    	}
+    
+    	// 初始化 hamp
+    	if h == nil {
+    		h = (*hmap)(newobject(t.hmap))
+    	}
+    	h.count = 0
+    	h.B = B
+    	h.extra = extra
+    	h.flags = 0
+    	h.hash0 = fastrand()
+    	h.buckets = buckets
+    	h.oldbuckets = nil
+    	h.nevacuate = 0
+    	h.noverflow = 0
+    
+    	return h
+    }
+</code></pre>
+<p>注意，这个函数返回的结果：<code>*hmap</code>，它是一个指针，而我们之前讲过的 <code>makeslice</code> 函数返回的是 <code>Slice</code> 结构体：</p>
+<pre><code class="language-go">    func makeslice(et *_type, len, cap int) slice
+</code></pre>
+<p>回顾一下 slice 的结构体定义：</p>
+<pre><code class="language-go">    // runtime/slice.go
+    type slice struct {
+        array unsafe.Pointer // 元素指针
+        len   int // 长度 
+        cap   int // 容量
+    }
+</code></pre>
+<p>结构体内部包含底层的数据指针。</p>
+<p>makemap 和 makeslice 的区别，带来一个不同点：当 map 和 slice 作为函数参数时，在函数参数内部对 map 的操作会影响 map 自身；而对 slice 却不会（之前讲 slice 的文章里有讲过）。</p>
+<p>主要原因：一个是指针（<code>*hmap</code>），一个是结构体（<code>slice</code>）。Go 语言中的函数传参都是值传递，在函数内部，参数会被 copy 到本地。<code>*hmap</code>指针 copy 完之后，仍然指向同一个 map，因此函数内部对 map 的操作会影响实参。而 slice 被 copy 后，会成为一个新的 slice，对它进行的操作不会影响到实参。</p>
+<h2 id="哈希函数">哈希函数</h2>
+<p>map 的一个关键点在于，哈希函数的选择。在程序启动时，会检测 cpu 是否支持 aes，如果支持，则使用 aes hash，否则使用 memhash。这是在函数 <code>alginit()</code> 中完成，位于路径：<code>src/runtime/alg.go</code> 下。</p>
+<blockquote>
+<p>hash 函数，有加密型和非加密型。<br>
+加密型的一般用于加密数据、数字摘要等，典型代表就是 md5、sha1、sha256、aes256 这种；<br>
+非加密型的一般就是查找。在 map 的应用场景中，用的是查找。<br>
+选择 hash 函数主要考察的是两点：性能、碰撞概率。</p>
+</blockquote>
+<p>之前我们讲过，表示类型的结构体：</p>
+<pre><code class="language-go">    type _type struct {
+    	size       uintptr
+    	ptrdata    uintptr // size of memory prefix holding all pointers
+    	hash       uint32
+    	tflag      tflag
+    	align      uint8
+    	fieldalign uint8
+    	kind       uint8
+    	alg        *typeAlg
+    	gcdata    *byte
+    	str       nameOff
+    	ptrToThis typeOff
+    }
+</code></pre>
+<p>其中 <code>alg</code> 字段就和哈希相关，它是指向如下结构体的指针：</p>
+<pre><code class="language-go">    // src/runtime/alg.go
+    type typeAlg struct {
+    	// (ptr to object, seed) -&gt; hash
+    	hash func(unsafe.Pointer, uintptr) uintptr
+    	// (ptr to object A, ptr to object B) -&gt; ==?
+    	equal func(unsafe.Pointer, unsafe.Pointer) bool
+    }
+</code></pre>
+<p>typeAlg 包含两个函数，hash 函数计算类型的哈希值，而 equal 函数则计算两个类型是否 “哈希相等”。</p>
+<p>对于 string 类型，它的 hash、equal 函数如下：</p>
+<pre><code class="language-go">    func strhash(a unsafe.Pointer, h uintptr) uintptr {
+    	x := (*stringStruct)(a)
+    	return memhash(x.str, h, uintptr(x.len))
+    }
+    
+    func strequal(p, q unsafe.Pointer) bool {
+    	return *(*string)(p) == *(*string)(q)
+    }
+</code></pre>
+<p>根据 key 的类型，_type 结构体的 alg 字段会被设置对应类型的 hash 和 equal 函数。</p>
+<h2 id="key-定位过程">key 定位过程</h2>
+<p>key 经过哈希计算后得到哈希值，共 64 个 bit 位（64 位机，32 位机就不讨论了，现在主流都是 64 位机），计算它到底要落在哪个桶时，只会用到最后 B 个 bit 位。还记得前面提到过的 B 吗？如果 B = 5，那么桶的数量，也就是 buckets 数组的长度是 2^5 = 32。</p>
+<p>例如，现在有一个 key 经过哈希函数计算后，得到的哈希结果是：</p>
+<pre><code class="language-go">     10010111 | 000011110110110010001111001010100010010110010101010 │ 01010
+</code></pre>
+<p>用最后的 5 个 bit 位，也就是 <code>01010</code>，值为 10，也就是 10 号桶。这个操作实际上就是取余操作，但是取余开销太大，所以代码实现上用的位操作代替。</p>
+<p>再用哈希值的高 8 位，找到此 key 在 bucket 中的位置，这是在寻找已有的 key。最开始桶内还没有 key，新加入的 key 会找到第一个空位，放入。</p>
+<p>buckets 编号就是桶编号，当两个不同的 key 落在同一个桶中，也就是发生了哈希冲突。冲突的解决手段是用链表法：在 bucket 中，从前往后找到第一个空位。这样，在查找某个 key 时，先找到对应的桶，再去遍历 bucket 中的 key。</p>
+<p>这里参考曹大 github 博客里的一张图，原图是 ascii 图，geek 味十足，可以从参考资料找到曹大的博客，推荐大家去看看。</p>
+<p></p><figure>
+	<a href="./【golang】map 详解_files/57577721-faf57580-74af-11e9-8826-aacdb34a1d2b.png">
+		<img src="./【golang】map 详解_files/57577721-faf57580-74af-11e9-8826-aacdb34a1d2b.png" loading="lazy" alt="mapacess">
+	</a>
+	
+	<figcaption>mapacess</figcaption>
+	
+</figure><p></p>
+<p>上图中，假定 B = 5，所以 bucket 总数就是 2^5 = 32。首先计算出待查找 key 的哈希，使用低 5 位 <code>00110</code>，找到对应的 6 号 bucket，使用高 8 位 <code>10010111</code>，对应十进制 151，在 6 号 bucket 中寻找 tophash 值（HOB hash）为 151 的 key，找到了 2 号槽位，这样整个查找过程就结束了。</p>
+<p>如果在 bucket 中没找到，并且 overflow 不为空，还要继续去 overflow bucket 中寻找，直到找到或是所有的 key 槽位都找遍了，包括所有的 overflow bucket。</p>
+<p>我们来看下源码吧，哈哈！通过汇编语言可以看到，查找某个 key 的底层函数是 <code>mapacess</code> 系列函数，函数的作用类似，区别在下一节会讲到。这里我们直接看 <code>mapacess1</code> 函数：</p>
+<pre><code class="language-go">    func mapaccess1(t *maptype, h *hmap, key unsafe.Pointer) unsafe.Pointer {
+    	// ……
+    	
+    	// 如果 h 什么都没有，返回零值
+    	if h == nil || h.count == 0 {
+    		return unsafe.Pointer(&amp;zeroVal[0])
+    	}
+    	
+    	// 写和读冲突
+    	if h.flags&amp;hashWriting != 0 {
+    		throw("concurrent map read and map write")
+    	}
+    	
+    	// 不同类型 key 使用的 hash 算法在编译期确定
+    	alg := t.key.alg
+    	
+    	// 计算哈希值，并且加入 hash0 引入随机性
+    	hash := alg.hash(key, uintptr(h.hash0))
+    	
+    	// 比如 B=5，那 m 就是31，二进制是全 1
+    	// 求 bucket num 时，将 hash 与 m 相与，
+    	// 达到 bucket num 由 hash 的低 8 位决定的效果
+    	m := uintptr(1)&lt;&lt;h.B - 1
+    	
+    	// b 就是 bucket 的地址
+    	b := (*bmap)(add(h.buckets, (hash&amp;m)*uintptr(t.bucketsize)))
+    	
+    	// oldbuckets 不为 nil，说明发生了扩容
+    	if c := h.oldbuckets; c != nil {
+    	    // 如果不是同 size 扩容（看后面扩容的内容）
+    	    // 对应条件 1 的解决方案
+    		if !h.sameSizeGrow() {
+    			// 新 bucket 数量是老的 2 倍
+    			m &gt;&gt;= 1
+    		}
+    		
+    		// 求出 key 在老的 map 中的 bucket 位置
+    		oldb := (*bmap)(add(c, (hash&amp;m)*uintptr(t.bucketsize)))
+    		
+    		// 如果 oldb 没有搬迁到新的 bucket
+    		// 那就在老的 bucket 中寻找
+    		if !evacuated(oldb) {
+    			b = oldb
+    		}
+    	}
+    	
+    	// 计算出高 8 位的 hash
+    	// 相当于右移 56 位，只取高8位
+    	top := uint8(hash &gt;&gt; (sys.PtrSize*8 - 8))
+    	
+    	// 增加一个 minTopHash
+    	if top &lt; minTopHash {
+    		top += minTopHash
+    	}
+    	for {
+    	    // 遍历 8 个 bucket
+    		for i := uintptr(0); i &lt; bucketCnt; i++ {
+    		    // tophash 不匹配，继续
+    			if b.tophash[i] != top {
+    				continue
+    			}
+    			// tophash 匹配，定位到 key 的位置
+    			k := add(unsafe.Pointer(b), dataOffset+i*uintptr(t.keysize))
+    			// key 是指针
+    			if t.indirectkey {
+    			    // 解引用
+    				k = *((*unsafe.Pointer)(k))
+    			}
+    			// 如果 key 相等
+    			if alg.equal(key, k) {
+    			    // 定位到 value 的位置
+    				v := add(unsafe.Pointer(b), dataOffset+bucketCnt*uintptr(t.keysize)+i*uintptr(t.valuesize))
+    				// value 解引用
+    				if t.indirectvalue {
+    					v = *((*unsafe.Pointer)(v))
+    				}
+    				return v
+    			}
+    		}
+    		
+    		// bucket 找完（还没找到），继续到 overflow bucket 里找
+    		b = b.overflow(t)
+    		// overflow bucket 也找完了，说明没有目标 key
+    		// 返回零值
+    		if b == nil {
+    			return unsafe.Pointer(&amp;zeroVal[0])
+    		}
+    	}
+    }
+</code></pre>
+<p>函数返回 h[key] 的指针，如果 h 中没有此 key，那就会返回一个 key 相应类型的零值，不会返回 nil。</p>
+<p>代码整体比较直接，没什么难懂的地方。跟着上面的注释一步步理解就好了。</p>
+<p>这里，说一下定位 key 和 value 的方法以及整个循环的写法。</p>
+<pre><code class="language-go">    // key 定位公式
+    k := add(unsafe.Pointer(b), dataOffset+i*uintptr(t.keysize))
+    
+    // value 定位公式
+    v := add(unsafe.Pointer(b), dataOffset+bucketCnt*uintptr(t.keysize)+i*uintptr(t.valuesize))
+</code></pre>
+<p>b 是 bmap 的地址，这里 bmap 还是源码里定义的结构体，只包含一个 tophash 数组，经编译器扩充之后的结构体才包含 key，value，overflow 这些字段。dataOffset 是 key 相对于 bmap 起始地址的偏移：</p>
+<pre><code class="language-go">    dataOffset = unsafe.Offsetof(struct {
+    		b bmap
+    		v int64
+    	}{}.v)
+</code></pre>
+<p>因此 bucket 里 key 的起始地址就是 unsafe.Pointer(b)+dataOffset。第 i 个 key 的地址就要在此基础上跨过 i 个 key 的大小；而我们又知道，value 的地址是在所有 key 之后，因此第 i 个 value 的地址还需要加上所有 key 的偏移。理解了这些，上面 key 和 value 的定位公式就很好理解了。</p>
+<p>再说整个大循环的写法，最外层是一个无限循环，通过</p>
+<pre><code class="language-go">    b = b.overflow(t)
+</code></pre>
+<p>遍历所有的 bucket，这相当于是一个 bucket 链表。</p>
+<p>当定位到一个具体的 bucket 时，里层循环就是遍历这个 bucket 里所有的 cell，或者说所有的槽位，也就是 bucketCnt=8 个槽位。整个循环过程：</p>
+<p></p><figure>
+	<a href="./【golang】map 详解_files/57581783-fe5c2180-74ee-11e9-99c9-5a226216e1af.png">
+		<img src="./【golang】map 详解_files/57581783-fe5c2180-74ee-11e9-99c9-5a226216e1af.png" loading="lazy" alt="mapacess loop">
+	</a>
+	
+	<figcaption>mapacess loop</figcaption>
+	
+</figure><p></p>
+<p>再说一下 minTopHash，当一个 cell 的 tophash 值小于 minTopHash 时，标志这个 cell 的迁移状态。因为这个状态值是放在 tophash 数组里，为了和正常的哈希值区分开，会给 key 计算出来的哈希值一个增量：minTopHash。这样就能区分正常的 top hash 值和表示状态的哈希值。</p>
+<p>下面的这几种状态就表征了 bucket 的情况：</p>
+<pre><code class="language-go">    // 空的 cell，也是初始时 bucket 的状态
+    empty          = 0
+    // 空的 cell，表示 cell 已经被迁移到新的 bucket
+    evacuatedEmpty = 1
+    // key,value 已经搬迁完毕，但是 key 都在新 bucket 前半部分，
+    // 后面扩容部分会再讲到。
+    evacuatedX     = 2
+    // 同上，key 在后半部分
+    evacuatedY     = 3
+    // tophash 的最小正常值
+    minTopHash     = 4
+</code></pre>
+<p>源码里判断这个 bucket 是否已经搬迁完毕，用到的函数：</p>
+<pre><code class="language-go">    func evacuated(b *bmap) bool {
+    	h := b.tophash[0]
+    	return h &gt; empty &amp;&amp; h &lt; minTopHash
+    }
+</code></pre>
+<p>只取了 tophash 数组的第一个值，判断它是否在 0-4 之间。对比上面的常量，当 top hash 是 <code>evacuatedEmpty</code>、<code>evacuatedX</code>、<code>evacuatedY</code> 这三个值之一，说明此 bucket 中的 key 全部被搬迁到了新 bucket。</p>
+<h2 id="map-的两种-get-操作">map 的两种 get 操作</h2>
+<p>Go 语言中读取 map 有两种语法：带 comma 和 不带 comma。当要查询的 key 不在 map 里，带 comma 的用法会返回一个 bool 型变量提示 key 是否在 map 中；而不带 comma 的语句则会返回一个 value 类型的零值。如果 value 是 int 型就会返回 0，如果 value 是 string 类型，就会返回空字符串。</p>
+<pre><code class="language-go">    package main
+    
+    import "fmt"
+    
+    func main() {
+    	ageMap := make(map[string]int)
+    	ageMap["qcrao"] = 18
+    
+        // 不带 comma 用法
+    	age1 := ageMap["stefno"]
+    	fmt.Println(age1)
+    
+        // 带 comma 用法
+    	age2, ok := ageMap["stefno"]
+    	fmt.Println(age2, ok)
+    }
+</code></pre>
+<p>运行结果：</p>
+<pre><code class="language-go">    0
+    0 false
+</code></pre>
+<p>以前一直觉得好神奇，怎么实现的？这其实是编译器在背后做的工作：分析代码后，将两种语法对应到底层两个不同的函数。</p>
+<pre><code class="language-go">    // src/runtime/hashmap.go
+    func mapaccess1(t *maptype, h *hmap, key unsafe.Pointer) unsafe.Pointer
+    func mapaccess2(t *maptype, h *hmap, key unsafe.Pointer) (unsafe.Pointer, bool)
+</code></pre>
+<p>源码里，函数命名不拘小节，直接带上后缀 1，2，完全不理会《代码大全》里的那一套命名的做法。从上面两个函数的声明也可以看出差别了，<code>mapaccess2</code> 函数返回值多了一个 bool 型变量，两者的代码也是完全一样的，只是在返回值后面多加了一个 false 或者 true。</p>
+<p>另外，根据 key 的不同类型，编译器还会将查找、插入、删除的函数用更具体的函数替换，以优化效率：</p>
+<p>key 类型</p>
+<p>查找</p>
+<pre><code class="language-go">uint32
+
+mapaccess1_fast32(t *maptype, h *hmap, key uint32) unsafe.Pointer```
+
+uint32
+
+mapaccess2_fast32(t *maptype, h *hmap, key uint32) (unsafe.Pointer, bool)
+
+uint64
+
+mapaccess1_fast64(t *maptype, h *hmap, key uint64) unsafe.Pointer
+
+uint64
+
+mapaccess2_fast64(t *maptype, h *hmap, key uint64) (unsafe.Pointer, bool)
+
+string
+
+mapaccess1_faststr(t *maptype, h *hmap, ky string) unsafe.Pointer
+
+string
+
+mapaccess2_faststr(t *maptype, h *hmap, ky string) (unsafe.Pointer, bool)
+</code></pre>
+<p>这些函数的参数类型直接是具体的 uint32、unt64、string，在函数内部由于提前知晓了 key 的类型，所以内存布局是很清楚的，因此能节省很多操作，提高效率。</p>
+<p>上面这些函数都是在文件 <code>src/runtime/hashmap_fast.go</code> 里。</p>
+<h2 id="如何进行扩容">如何进行扩容</h2>
+<p>使用哈希表的目的就是要快速查找到目标 key，然而，随着向 map 中添加的 key 越来越多，key 发生碰撞的概率也越来越大。bucket 中的 8 个 cell 会被逐渐塞满，查找、插入、删除 key 的效率也会越来越低。最理想的情况是一个 bucket 只装一个 key，这样，就能达到 <code>O(1)</code> 的效率，但这样空间消耗太大，用空间换时间的代价太高。</p>
+<p>Go 语言采用一个 bucket 里装载 8 个 key，定位到某个 bucket 后，还需要再定位到具体的 key，这实际上又用了时间换空间。</p>
+<p>当然，这样做，要有一个度，不然所有的 key 都落在了同一个 bucket 里，直接退化成了链表，各种操作的效率直接降为 O(n)，是不行的。</p>
+<p>因此，需要有一个指标来衡量前面描述的情况，这就是<code>装载因子</code>。Go 源码里这样定义 <code>装载因子</code>：</p>
+<pre><code class="language-go">    loadFactor := count / (2^B)
+</code></pre>
+<p>count 就是 map 的元素个数，2^B 表示 bucket 数量。</p>
+<p>再来说触发 map 扩容的时机：在向 map 插入新 key 的时候，会进行条件检测，符合下面这 2 个条件，就会触发扩容：</p>
+<ol>
+<li>装载因子超过阈值，源码里定义的阈值是 6.5。</li>
+<li>overflow 的 bucket 数量过多：当 B 小于 15，也就是 bucket 总数 2^B 小于 2^15 时，如果 overflow 的 bucket 数量超过 2^B；当 B &gt;= 15，也就是 bucket 总数 2^B 大于等于 2^15，如果 overflow 的 bucket 数量超过 2^15。</li>
+</ol>
+<p>通过汇编语言可以找到赋值操作对应源码中的函数是 <code>mapassign</code>，对应扩容条件的源码如下：</p>
+<pre><code class="language-go">    // src/runtime/hashmap.go/mapassign
+    
+    // 触发扩容时机
+    if !h.growing() &amp;&amp; (overLoadFactor(int64(h.count), h.B) || tooManyOverflowBuckets(h.noverflow, h.B)) {
+    		hashGrow(t, h)
+    	}
+    
+    // 装载因子超过 6.5
+    func overLoadFactor(count int64, B uint8) bool {
+    	return count &gt;= bucketCnt &amp;&amp; float32(count) &gt;= loadFactor*float32((uint64(1)&lt;&lt;B))
+    }
+    
+    // overflow buckets 太多
+    func tooManyOverflowBuckets(noverflow uint16, B uint8) bool {
+    	if B &lt; 16 {
+    		return noverflow &gt;= uint16(1)&lt;&lt;B
+    	}
+    	return noverflow &gt;= 1&lt;&lt;15
+    }
+</code></pre>
+<p>解释一下：</p>
+<p>第 1 点：我们知道，每个 bucket 有 8 个空位，在没有溢出，且所有的桶都装满了的情况下，装载因子算出来的结果是 8。因此当装载因子超过 6.5 时，表明很多 bucket 都快要装满了，查找效率和插入效率都变低了。在这个时候进行扩容是有必要的。</p>
+<p>第 2 点：是对第 1 点的补充。就是说在装载因子比较小的情况下，这时候 map 的查找和插入效率也很低，而第 1 点识别不出来这种情况。表面现象就是计算装载因子的分子比较小，即 map 里元素总数少，但是 bucket 数量多（真实分配的 bucket 数量多，包括大量的 overflow bucket）。</p>
+<p>不难想像造成这种情况的原因：不停地插入、删除元素。先插入很多元素，导致创建了很多 bucket，但是装载因子达不到第 1 点的临界值，未触发扩容来缓解这种情况。之后，删除元素降低元素总数量，再插入很多元素，导致创建很多的 overflow bucket，但就是不会触犯第 1 点的规定，你能拿我怎么办？overflow bucket 数量太多，导致 key 会很分散，查找插入效率低得吓人，因此出台第 2 点规定。这就像是一座空城，房子很多，但是住户很少，都分散了，找起人来很困难。</p>
+<p>对于命中条件 1，2 的限制，都会发生扩容。但是扩容的策略并不相同，毕竟两种条件应对的场景不同。</p>
+<p>对于条件 1，元素太多，而 bucket 数量太少，很简单：将 B 加 1，bucket 最大数量（2^B）直接变成原来 bucket 数量的 2 倍。于是，就有新老 bucket 了。注意，这时候元素都在老 bucket 里，还没迁移到新的 bucket 来。而且，新 bucket 只是最大数量变为原来最大数量（2^B）的 2 倍（2^B * 2）。</p>
+<p>对于条件 2，其实元素没那么多，但是 overflow bucket 数特别多，说明很多 bucket 都没装满。解决办法就是开辟一个新 bucket 空间，将老 bucket 中的元素移动到新 bucket，使得同一个 bucket 中的 key 排列地更紧密。这样，原来，在 overflow bucket 中的 key 可以移动到 bucket 中来。结果是节省空间，提高 bucket 利用率，map 的查找和插入效率自然就会提升。</p>
+<p>对于条件 2 的解决方案，曹大的博客里还提出了一个极端的情况：如果插入 map 的 key 哈希都一样，就会落到同一个 bucket 里，超过 8 个就会产生 overflow bucket，结果也会造成 overflow bucket 数过多。移动元素其实解决不了问题，因为这时整个哈希表已经退化成了一个链表，操作效率变成了 <code>O(n)</code>。</p>
+<p>再来看一下扩容具体是怎么做的。由于 map 扩容需要将原有的 key/value 重新搬迁到新的内存地址，如果有大量的 key/value 需要搬迁，会非常影响性能。因此 Go map 的扩容采取了一种称为 “渐进式” 地方式，原有的 key 并不会一次性搬迁完毕，每次最多只会搬迁 2 个 bucket。</p>
+<p>上面说的 <code>hashGrow()</code> 函数实际上并没有真正地 “搬迁”，它只是分配好了新的 buckets，并将老的 buckets 挂到了 oldbuckets 字段上。真正搬迁 buckets 的动作在 <code>growWork()</code> 函数中，而调用 <code>growWork()</code> 函数的动作是在 mapassign 和 mapdelete 函数中。也就是插入或修改、删除 key 的时候，都会尝试进行搬迁 buckets 的工作。先检查 oldbuckets 是否搬迁完毕，具体来说就是检查 oldbuckets 是否为 nil。</p>
+<p>我们先看 <code>hashGrow()</code> 函数所做的工作，再来看具体的搬迁 buckets 是如何进行的。</p>
+<pre><code class="language-go">    func hashGrow(t *maptype, h *hmap) {
+    	// B+1 相当于是原来 2 倍的空间
+    	bigger := uint8(1)
+    
+    	// 对应条件 2
+    	if !overLoadFactor(int64(h.count), h.B) {
+    		// 进行等量的内存扩容，所以 B 不变
+    		bigger = 0
+    		h.flags |= sameSizeGrow
+    	}
+    	// 将老 buckets 挂到 buckets 上
+    	oldbuckets := h.buckets
+    	// 申请新的 buckets 空间
+    	newbuckets, nextOverflow := makeBucketArray(t, h.B+bigger)
+    
+    	flags := h.flags &amp;^ (iterator | oldIterator)
+    	if h.flags&amp;iterator != 0 {
+    		flags |= oldIterator
+    	}
+    	// 提交 grow 的动作
+    	h.B += bigger
+    	h.flags = flags
+    	h.oldbuckets = oldbuckets
+    	h.buckets = newbuckets
+    	// 搬迁进度为 0
+    	h.nevacuate = 0
+    	// overflow buckets 数为 0
+    	h.noverflow = 0
+    
+    	// ……
+    }
+</code></pre>
+<p>主要是申请到了新的 buckets 空间，把相关的标志位都进行了处理：例如标志 nevacuate 被置为 0， 表示当前搬迁进度为 0。</p>
+<p>值得一说的是对 <code>h.flags</code> 的处理：</p>
+<pre><code class="language-go">    flags := h.flags &amp;^ (iterator | oldIterator)
+    if h.flags&amp;iterator != 0 {
+    	flags |= oldIterator
+    }
+</code></pre>
+<p>这里得先说下运算符：&amp;^。这叫<code>按位置 0</code>运算符。例如：</p>
+<pre><code class="language-go">    x = 01010011
+    y = 01010100
+    z = x &amp;^ y = 00000011
+</code></pre>
+<p>如果 y bit 位为 1，那么结果 z 对应 bit 位就为 0，否则 z 对应 bit 位就和 x 对应 bit 位的值相同。</p>
+<p>所以上面那段对 flags 一顿操作的代码的意思是：先把 h.flags 中 iterator 和 oldIterator 对应位清 0，然后如果发现 iterator 位为 1，那就把它转接到 oldIterator 位，使得 oldIterator 标志位变成 1。潜台词就是：buckets 现在挂到了 oldBuckets 名下了，对应的标志位也转接过去吧。</p>
+<p>几个标志位如下：</p>
+<pre><code class="language-go">    // 可能有迭代器使用 buckets
+    iterator     = 1
+    // 可能有迭代器使用 oldbuckets
+    oldIterator  = 2
+    // 有协程正在向 map 中写入 key
+    hashWriting  = 4
+    // 等量扩容（对应条件 2）
+    sameSizeGrow = 8
+</code></pre>
+<p>再来看看真正执行搬迁工作的 growWork() 函数。</p>
+<pre><code class="language-go">    func growWork(t *maptype, h *hmap, bucket uintptr) {
+    	// 确认搬迁老的 bucket 对应正在使用的 bucket
+    	evacuate(t, h, bucket&amp;h.oldbucketmask())
+    
+    	// 再搬迁一个 bucket，以加快搬迁进程
+    	if h.growing() {
+    		evacuate(t, h, h.nevacuate)
+    	}
+    }
+</code></pre>
+<p>h.growing() 函数非常简单：</p>
+<pre><code class="language-go">    func (h *hmap) growing() bool {
+    	return h.oldbuckets != nil
+    }
+</code></pre>
+<p>如果 <code>oldbuckets</code> 不为空，说明还没有搬迁完毕，还得继续搬。</p>
+<p><code>bucket&amp;h.oldbucketmask()</code> 这行代码，如源码注释里说的，是为了确认搬迁的 bucket 是我们正在使用的 bucket。<code>oldbucketmask()</code> 函数返回扩容前的 map 的 bucketmask。</p>
+<p>所谓的 bucketmask，作用就是将 key 计算出来的哈希值与 bucketmask 相与，得到的结果就是 key 应该落入的桶。比如 B = 5，那么 bucketmask 的低 5 位是 <code>11111</code>，其余位是 <code>0</code>，hash 值与其相与的意思是，只有 hash 值的低 5 位决策 key 到底落入哪个 bucket。</p>
+<p>接下来，我们集中所有的精力在搬迁的关键函数 evacuate。源码贴在下面，不要紧张，我会加上大面积的注释，通过注释绝对是能看懂的。之后，我会再对搬迁过程作详细说明。</p>
+<p>源码如下：</p>
+<pre><code class="language-go">    func evacuate(t *maptype, h *hmap, oldbucket uintptr) {
+    	// 定位老的 bucket 地址
+    	b := (*bmap)(add(h.oldbuckets, oldbucket*uintptr(t.bucketsize)))
+    	// 结果是 2^B，如 B = 5，结果为32
+    	newbit := h.noldbuckets()
+    	// key 的哈希函数
+    	alg := t.key.alg
+    	// 如果 b 没有被搬迁过
+    	if !evacuated(b) {
+    		var (
+    			// 表示bucket 移动的目标地址
+    			x, y   *bmap
+    			// 指向 x,y 中的 key/val
+    			xi, yi int
+    			// 指向 x，y 中的 key
+    			xk, yk unsafe.Pointer
+    			// 指向 x，y 中的 value
+    			xv, yv unsafe.Pointer
+    		)
+    		// 默认是等 size 扩容，前后 bucket 序号不变
+    		// 使用 x 来进行搬迁
+    		x = (*bmap)(add(h.buckets, oldbucket*uintptr(t.bucketsize)))
+    		xi = 0
+    		xk = add(unsafe.Pointer(x), dataOffset)
+    		xv = add(xk, bucketCnt*uintptr(t.keysize))、
+    
+    		// 如果不是等 size 扩容，前后 bucket 序号有变
+    		// 使用 y 来进行搬迁
+    		if !h.sameSizeGrow() {
+    			// y 代表的 bucket 序号增加了 2^B
+    			y = (*bmap)(add(h.buckets, (oldbucket+newbit)*uintptr(t.bucketsize)))
+    			yi = 0
+    			yk = add(unsafe.Pointer(y), dataOffset)
+    			yv = add(yk, bucketCnt*uintptr(t.keysize))
+    		}
+    
+    		// 遍历所有的 bucket，包括 overflow buckets
+    		// b 是老的 bucket 地址
+    		for ; b != nil; b = b.overflow(t) {
+    			k := add(unsafe.Pointer(b), dataOffset)
+    			v := add(k, bucketCnt*uintptr(t.keysize))
+    
+    			// 遍历 bucket 中的所有 cell
+    			for i := 0; i &lt; bucketCnt; i, k, v = i+1, add(k, uintptr(t.keysize)), add(v, uintptr(t.valuesize)) {
+    				// 当前 cell 的 top hash 值
+    				top := b.tophash[i]
+    				// 如果 cell 为空，即没有 key
+    				if top == empty {
+    					// 那就标志它被"搬迁"过
+    					b.tophash[i] = evacuatedEmpty
+    					// 继续下个 cell
+    					continue
+    				}
+    				// 正常不会出现这种情况
+    				// 未被搬迁的 cell 只可能是 empty 或是
+    				// 正常的 top hash（大于 minTopHash）
+    				if top &lt; minTopHash {
+    					throw("bad map state")
+    				}
+    
+    				k2 := k
+    				// 如果 key 是指针，则解引用
+    				if t.indirectkey {
+    					k2 = *((*unsafe.Pointer)(k2))
+    				}
+    
+    				// 默认使用 X，等量扩容
+    				useX := true
+    				// 如果不是等量扩容
+    				if !h.sameSizeGrow() {
+    					// 计算 hash 值，和 key 第一次写入时一样
+    					hash := alg.hash(k2, uintptr(h.hash0))
+    
+    					// 如果有协程正在遍历 map
+    					if h.flags&amp;iterator != 0 {
+    						// 如果出现 相同的 key 值，算出来的 hash 值不同
+    						if !t.reflexivekey &amp;&amp; !alg.equal(k2, k2) {
+    							// 只有在 float 变量的 NaN() 情况下会出现
+    							if top&amp;1 != 0 {
+    								// 第 B 位置 1
+    								hash |= newbit
+    							} else {
+    								// 第 B 位置 0
+    								hash &amp;^= newbit
+    							}
+    							// 取高 8 位作为 top hash 值
+    							top = uint8(hash &gt;&gt; (sys.PtrSize*8 - 8))
+    							if top &lt; minTopHash {
+    								top += minTopHash
+    							}
+    						}
+    					}
+    
+    					// 取决于新哈希值的 oldB+1 位是 0 还是 1
+    					// 详细看后面的文章
+    					useX = hash&amp;newbit == 0
+    				}
+    
+    				// 如果 key 搬到 X 部分
+    				if useX {
+    					// 标志老的 cell 的 top hash 值，表示搬移到 X 部分
+    					b.tophash[i] = evacuatedX
+    					// 如果 xi 等于 8，说明要溢出了
+    					if xi == bucketCnt {
+    						// 新建一个 bucket
+    						newx := h.newoverflow(t, x)
+    						x = newx
+    						// xi 从 0 开始计数
+    						xi = 0
+    						// xk 表示 key 要移动到的位置
+    						xk = add(unsafe.Pointer(x), dataOffset)
+    						// xv 表示 value 要移动到的位置
+    						xv = add(xk, bucketCnt*uintptr(t.keysize))
+    					}
+    					// 设置 top hash 值
+    					x.tophash[xi] = top
+    					// key 是指针
+    					if t.indirectkey {
+    						// 将原 key（是指针）复制到新位置
+    						*(*unsafe.Pointer)(xk) = k2 // copy pointer
+    					} else {
+    						// 将原 key（是值）复制到新位置
+    						typedmemmove(t.key, xk, k) // copy value
+    					}
+    					// value 是指针，操作同 key
+    					if t.indirectvalue {
+    						*(*unsafe.Pointer)(xv) = *(*unsafe.Pointer)(v)
+    					} else {
+    						typedmemmove(t.elem, xv, v)
+    					}
+    
+    					// 定位到下一个 cell
+    					xi++
+    					xk = add(xk, uintptr(t.keysize))
+    					xv = add(xv, uintptr(t.valuesize))
+    				} else { // key 搬到 Y 部分，操作同 X 部分
+    					// ……
+    					// 省略了这部分，操作和 X 部分相同
+    				}
+    			}
+    		}
+    		// 如果没有协程在使用老的 buckets，就把老 buckets 清除掉，帮助gc
+    		if h.flags&amp;oldIterator == 0 {
+    			b = (*bmap)(add(h.oldbuckets, oldbucket*uintptr(t.bucketsize)))
+    			// 只清除bucket 的 key,value 部分，保留 top hash 部分，指示搬迁状态
+    			if t.bucket.kind&amp;kindNoPointers == 0 {
+    				memclrHasPointers(add(unsafe.Pointer(b), dataOffset), uintptr(t.bucketsize)-dataOffset)
+    			} else {
+    				memclrNoHeapPointers(add(unsafe.Pointer(b), dataOffset), uintptr(t.bucketsize)-dataOffset)
+    			}
+    		}
+    	}
+    
+    	// 更新搬迁进度
+    	// 如果此次搬迁的 bucket 等于当前进度
+    	if oldbucket == h.nevacuate {
+    		// 进度加 1
+    		h.nevacuate = oldbucket + 1
+    		// Experiments suggest that 1024 is overkill by at least an order of magnitude.
+    		// Put it in there as a safeguard anyway, to ensure O(1) behavior.
+    		// 尝试往后看 1024 个 bucket
+    		stop := h.nevacuate + 1024
+    		if stop &gt; newbit {
+    			stop = newbit
+    		}
+    		// 寻找没有搬迁的 bucket
+    		for h.nevacuate != stop &amp;&amp; bucketEvacuated(t, h, h.nevacuate) {
+    			h.nevacuate++
+    		}
+    		
+    		// 现在 h.nevacuate 之前的 bucket 都被搬迁完毕
+    		
+    		// 所有的 buckets 搬迁完毕
+    		if h.nevacuate == newbit {
+    			// 清除老的 buckets
+    			h.oldbuckets = nil
+    			// 清除老的 overflow bucket
+    			// 回忆一下：[0] 表示当前 overflow bucket
+    			// [1] 表示 old overflow bucket
+    			if h.extra != nil {
+    				h.extra.overflow[1] = nil
+    			}
+    			// 清除正在扩容的标志位
+    			h.flags &amp;^= sameSizeGrow
+    		}
+    	}
+    }
+</code></pre>
+<p>evacuate 函数的代码注释非常清晰，对着代码和注释是很容易看懂整个的搬迁过程的，耐心点。</p>
+<p>搬迁的目的就是将老的 buckets 搬迁到新的 buckets。而通过前面的说明我们知道，应对条件 1，新的 buckets 数量是之前的一倍，应对条件 2，新的 buckets 数量和之前相等。</p>
+<p>对于条件 2，从老的 buckets 搬迁到新的 buckets，由于 bucktes 数量不变，因此可以按序号来搬，比如原来在 0 号 bucktes，到新的地方后，仍然放在 0 号 buckets。</p>
+<p>对于条件 1，就没这么简单了。要重新计算 key 的哈希，才能决定它到底落在哪个 bucket。例如，原来 B = 5，计算出 key 的哈希后，只用看它的低 5 位，就能决定它落在哪个 bucket。扩容后，B 变成了 6，因此需要多看一位，它的低 6 位决定 key 落在哪个 bucket。这称为 <code>rehash</code>。</p>
+<p></p><figure>
+	<a href="./【golang】map 详解_files/57740474-af7adb80-76ea-11e9-8409-4af0ce1a814a.png">
+		<img src="./【golang】map 详解_files/57740474-af7adb80-76ea-11e9-8409-4af0ce1a814a.png" loading="lazy" alt="map rehash">
+	</a>
+	
+	<figcaption>map rehash</figcaption>
+	
+</figure><p></p>
+<p>因此，某个 key 在搬迁前后 bucket 序号可能和原来相等，也可能是相比原来加上 2^B（原来的 B 值），取决于 hash 值 第 6 bit 位是 0 还是 1。</p>
+<p>理解了上面 bucket 序号的变化，我们就可以回答另一个问题了：为什么遍历 map 是无序的？</p>
+<p>map 在扩容后，会发生 key 的搬迁，原来落在同一个 bucket 中的 key，搬迁后，有些 key 就要远走高飞了（bucket 序号加上了 2^B）。而遍历的过程，就是按顺序遍历 bucket，同时按顺序遍历 bucket 中的 key。搬迁后，key 的位置发生了重大的变化，有些 key 飞上高枝，有些 key 则原地不动。这样，遍历 map 的结果就不可能按原来的顺序了。</p>
+<p>当然，如果我就一个 hard code 的 map，我也不会向 map 进行插入删除的操作，按理说每次遍历这样的 map 都会返回一个固定顺序的 key/value 序列吧。的确是这样，但是 Go 杜绝了这种做法，因为这样会给新手程序员带来误解，以为这是一定会发生的事情，在某些情况下，可能会酿成大错。</p>
+<p>当然，Go 做得更绝，当我们在遍历 map 时，并不是固定地从 0 号 bucket 开始遍历，每次都是从一个随机值序号的 bucket 开始遍历，并且是从这个 bucket 的一个随机序号的 cell 开始遍历。这样，即使你是一个写死的 map，仅仅只是遍历它，也不太可能会返回一个固定序列的 key/value 对了。</p>
+<p>多说一句，“迭代 map 的结果是无序的” 这个特性是从 go 1.0 开始加入的。</p>
+<p>再明确一个问题：如果扩容后，B 增加了 1，意味着 buckets 总数是原来的 2 倍，原来 1 号的桶 “裂变” 到两个桶。</p>
+<p>例如，原始 B = 2，1 号 bucket 中有 2 个 key 的哈希值低 3 位分别为：010，110。由于原来 B = 2，所以低 2 位 <code>10</code> 决定它们落在 2 号桶，现在 B 变成 3，所以 <code>010</code>、<code>110</code> 分别落入 2、6 号桶。</p>
+<p></p><figure>
+	<a href="./【golang】map 详解_files/57818861-74df7480-77b8-11e9-8104-2a58dc006660.png">
+		<img src="./【golang】map 详解_files/57818861-74df7480-77b8-11e9-8104-2a58dc006660.png" loading="lazy" alt="bucket split">
+	</a>
+	
+	<figcaption>bucket split</figcaption>
+	
+</figure><p></p>
+<p>理解了这个，后面讲 map 迭代的时候会用到。</p>
+<p>再来讲搬迁函数中的几个关键点：</p>
+<p>evacuate 函数每次只完成一个 bucket 的搬迁工作，因此要遍历完此 bucket 的所有的 cell，将有值的 cell copy 到新的地方。bucket 还会链接 overflow bucket，它们同样需要搬迁。因此会有 2 层循环，外层遍历 bucket 和 overflow bucket，内层遍历 bucket 的所有 cell。这样的循环在 map 的源码里到处都是，要理解透了。</p>
+<p>源码里提到 X, Y part，其实就是我们说的如果是扩容到原来的 2 倍，桶的数量是原来的 2 倍，前一半桶被称为 X part，后一半桶被称为 Y part。一个 bucket 中的 key 可能会分裂落到 2 个桶，一个位于 X part，一个位于 Y part。所以在搬迁一个 cell 之前，需要知道这个 cell 中的 key 是落到哪个 Part。很简单，重新计算 cell 中 key 的 hash，并向前 “多看” 一位，决定落入哪个 Part，这个前面也说得很详细了。</p>
+<p>有一个特殊情况是：有一种 key，每次对它计算 hash，得到的结果都不一样。这个 key 就是 <code>math.NaN()</code> 的结果，它的含义是 <code>not a number</code>，类型是 float64。当它作为 map 的 key，在搬迁的时候，会遇到一个问题：再次计算它的哈希值和它当初插入 map 时的计算出来的哈希值不一样！</p>
+<p>你可能想到了，这样带来的一个后果是，这个 key 是永远不会被 Get 操作获取的！当我使用 <code>m[math.NaN()]</code> 语句的时候，是查不出来结果的。这个 key 只有在遍历整个 map 的时候，才有机会现身。所以，可以向一个 map 插入任意数量的 <code>math.NaN()</code> 作为 key。</p>
+<p>当搬迁碰到 <code>math.NaN()</code> 的 key 时，只通过 tophash 的最低位决定分配到 X part 还是 Y part（如果扩容后是原来 buckets 数量的 2 倍）。如果 tophash 的最低位是 0 ，分配到 X part；如果是 1 ，则分配到 Y part。</p>
+<p>这是通过 tophash 值与新算出来的哈希值进行运算得到的：</p>
+<pre><code class="language-go">    if top&amp;1 != 0 {
+        // top hash 最低位为 1
+        // 新算出来的 hash 值的 B 位置 1
+    	hash |= newbit
+    } else {
+        // 新算出来的 hash 值的 B 位置 0
+    	hash &amp;^= newbit
+    }
+    
+    // hash 值的 B 位为 0，则搬迁到 x part
+    // 当 B = 5时，newbit = 32，二进制低 6 位为 10 0000
+    useX = hash&amp;newbit == 0
+</code></pre>
+<p>其实这样的 key 我随便搬迁到哪个 bucket 都行，当然，还是要搬迁到上面裂变那张图中的两个 bucket 中去。但这样做是有好处的，在后面讲 map 迭代的时候会再详细解释，暂时知道是这样分配的就行。</p>
+<p>确定了要搬迁到的目标 bucket 后，搬迁操作就比较好进行了。将源 key/value 值 copy 到目的地相应的位置。</p>
+<p>设置 key 在原始 buckets 的 tophash 为 <code>evacuatedX</code> 或是 <code>evacuatedY</code>，表示已经搬迁到了新 map 的 x part 或是 y part。新 map 的 tophash 则正常取 key 哈希值的高 8 位。</p>
+<p>下面通过图来宏观地看一下扩容前后的变化。</p>
+<p>扩容前，B = 2，共有 4 个 buckets，lowbits 表示 hash 值的低位。假设我们不关注其他 buckets 情况，专注在 2 号 bucket。并且假设 overflow 太多，触发了等量扩容（对应于前面的条件 2）。</p>
+<p></p><figure>
+	<a href="./【golang】map 详解_files/57963483-5b286380-7957-11e9-852a-8296c6c16daa.png">
+		<img src="./【golang】map 详解_files/57963483-5b286380-7957-11e9-852a-8296c6c16daa.png" loading="lazy" alt="扩容前">
+	</a>
+	
+	<figcaption>扩容前</figcaption>
+	
+</figure><p></p>
+<p>扩容完成后，overflow bucket 消失了，key 都集中到了一个 bucket，更为紧凑了，提高了查找的效率。</p>
+<p></p><figure>
+	<a href="./【golang】map 详解_files/57963519-dc7ff600-7957-11e9-9877-36c3f4bc3526.png">
+		<img src="./【golang】map 详解_files/57963519-dc7ff600-7957-11e9-9877-36c3f4bc3526.png" loading="lazy" alt="same size 扩容">
+	</a>
+	
+	<figcaption>same size 扩容</figcaption>
+	
+</figure><p></p>
+<p>假设触发了 2 倍的扩容，那么扩容完成后，老 buckets 中的 key 分裂到了 2 个 新的 bucket。一个在 x part，一个在 y 的 part。依据是 hash 的 lowbits。新 map 中 <code>0-3</code> 称为 x part，<code>4-7</code> 称为 y part。</p>
+<p></p><figure>
+	<a href="./【golang】map 详解_files/57963651-04705900-795a-11e9-9801-e3dc475d4782.png">
+		<img src="./【golang】map 详解_files/57963651-04705900-795a-11e9-9801-e3dc475d4782.png" loading="lazy" alt="2倍扩容">
+	</a>
+	
+	<figcaption>2 倍扩容</figcaption>
+	
+</figure><p></p>
+<p>注意，上面的两张图忽略了其他 buckets 的搬迁情况，表示所有的 bucket 都搬迁完毕后的情形。实际上，我们知道，搬迁是一个 “渐进” 的过程，并不会一下子就全部搬迁完毕。所以在搬迁过程中，oldbuckets 指针还会指向原来老的 []bmap，并且已经搬迁完毕的 key 的 tophash 值会是一个状态值，表示 key 的搬迁去向。</p>
+<h2 id="map-的遍历">map 的遍历</h2>
+<p>本来 map 的遍历过程比较简单：遍历所有的 bucket 以及它后面挂的 overflow bucket，然后挨个遍历 bucket 中的所有 cell。每个 bucket 中包含 8 个 cell，从有 key 的 cell 中取出 key 和 value，这个过程就完成了。</p>
+<p>但是，现实并没有这么简单。还记得前面讲过的扩容过程吗？扩容过程不是一个原子的操作，它每次最多只搬运 2 个 bucket，所以如果触发了扩容操作，那么在很长时间里，map 的状态都是处于一个中间态：有些 bucket 已经搬迁到新家，而有些 bucket 还待在老地方。</p>
+<p>因此，遍历如果发生在扩容的过程中，就会涉及到遍历新老 bucket 的过程，这是难点所在。</p>
+<p>我先写一个简单的代码样例，假装不知道遍历过程具体调用的是什么函数：</p>
+<pre><code class="language-go">    package main
+    
+    import "fmt"
+    
+    func main() {
+    	ageMp := make(map[string]int)
+    	ageMp["qcrao"] = 18
+    
+    	for name, age := range ageMp {
+    		fmt.Println(name, age)
+    	}
+    }
+</code></pre>
+<p>执行命令：</p>
+<pre><code class="language-go">    go tool compile -S main.go
+</code></pre>
+<p>得到汇编命令。这里就不逐行讲解了，可以去看之前的几篇文章，说得很详细。</p>
+<p>关键的几行汇编代码如下：</p>
+<pre><code class="language-go">    // ......
+    0x0124 00292 (test16.go:9)      CALL    runtime.mapiterinit(SB)
+    
+    // ......
+    0x01fb 00507 (test16.go:9)      CALL    runtime.mapiternext(SB)
+    0x0200 00512 (test16.go:9)      MOVQ    ""..autotmp_4+160(SP), AX
+    0x0208 00520 (test16.go:9)      TESTQ   AX, AX
+    0x020b 00523 (test16.go:9)      JNE     302
+    
+    // ......
+</code></pre>
+<p>这样，关于 map 迭代，底层的函数调用关系一目了然。先是调用 <code>mapiterinit</code> 函数初始化迭代器，然后循环调用 <code>mapiternext</code> 函数进行 map 迭代。</p>
+<p></p><figure>
+	<a href="./【golang】map 详解_files/57976471-ad2ebf00-7a13-11e9-8dd8-d7be54f96440.png">
+		<img src="./【golang】map 详解_files/57976471-ad2ebf00-7a13-11e9-8dd8-d7be54f96440.png" loading="lazy" alt="map iter loop">
+	</a>
+	
+	<figcaption>map iter loop</figcaption>
+	
+</figure><p></p>
+<p>迭代器的结构体定义：</p>
+<pre><code class="language-go">    type hiter struct {
+    	// key 指针
+    	key         unsafe.Pointer
+    	// value 指针
+    	value       unsafe.Pointer
+    	// map 类型，包含如 key size 大小等
+    	t           *maptype
+    	// map header
+    	h           *hmap
+    	// 初始化时指向的 bucket
+    	buckets     unsafe.Pointer
+    	// 当前遍历到的 bmap
+    	bptr        *bmap
+    	overflow    [2]*[]*bmap
+    	// 起始遍历的 bucet 编号
+    	startBucket uintptr
+    	// 遍历开始时 cell 的编号（每个 bucket 中有 8 个 cell）
+    	offset      uint8
+    	// 是否从头遍历了
+    	wrapped     bool
+    	// B 的大小
+    	B           uint8
+    	// 指示当前 cell 序号
+    	i           uint8
+    	// 指向当前的 bucket
+    	bucket      uintptr
+    	// 因为扩容，需要检查的 bucket
+    	checkBucket uintptr
+    }
+</code></pre>
+<p><code>mapiterinit</code> 就是对 hiter 结构体里的字段进行初始化赋值操作。</p>
+<p>前面已经提到过，即使是对一个写死的 map 进行遍历，每次出来的结果也是无序的。下面我们就可以近距离地观察他们的实现了。</p>
+<pre><code class="language-go">    // 生成随机数 r
+    r := uintptr(fastrand())
+    if h.B &gt; 31-bucketCntBits {
+    	r += uintptr(fastrand()) &lt;&lt; 31
+    }
+    
+    // 从哪个 bucket 开始遍历
+    it.startBucket = r &amp; (uintptr(1)&lt;&lt;h.B - 1)
+    // 从 bucket 的哪个 cell 开始遍历
+    it.offset = uint8(r &gt;&gt; h.B &amp; (bucketCnt - 1))
+</code></pre>
+<p>例如，B = 2，那 <code>uintptr(1)&lt;&lt;h.B - 1</code> 结果就是 3，低 8 位为 <code>0000 0011</code>，将 r 与之相与，就可以得到一个 <code>0~3</code> 的 bucket 序号；bucketCnt - 1 等于 7，低 8 位为 <code>0000 0111</code>，将 r 右移 2 位后，与 7 相与，就可以得到一个 <code>0~7</code> 号的 cell。</p>
+<p>于是，在 <code>mapiternext</code> 函数中就会从 it.startBucket 的 it.offset 号的 cell 开始遍历，取出其中的 key 和 value，直到又回到起点 bucket，完成遍历过程。</p>
+<p>源码部分比较好看懂，尤其是理解了前面注释的几段代码后，再看这部分代码就没什么压力了。所以，接下来，我将通过图形化的方式讲解整个遍历过程，希望能够清晰易懂。</p>
+<p>假设我们有下图所示的一个 map，起始时 B = 1，有两个 bucket，后来触发了扩容（这里不要深究扩容条件，只是一个设定），B 变成 2。并且， 1 号 bucket 中的内容搬迁到了新的 bucket，<code>1 号</code>裂变成 <code>1 号</code>和 <code>3 号</code>；<code>0 号</code> bucket 暂未搬迁。老的 bucket 挂在在 <code>*oldbuckets</code> 指针上面，新的 bucket 则挂在 <code>*buckets</code> 指针上面。</p>
+<p></p><figure>
+	<a href="./【golang】map 详解_files/57978113-f8a79400-7a38-11e9-8e27-3f3ba4fa557f.png">
+		<img src="./【golang】map 详解_files/57978113-f8a79400-7a38-11e9-8e27-3f3ba4fa557f.png" loading="lazy" alt="map origin">
+	</a>
+	
+	<figcaption>map origin</figcaption>
+	
+</figure><p></p>
+<p>这时，我们对此 map 进行遍历。假设经过初始化后，startBucket = 3，offset = 2。于是，遍历的起点将是 3 号 bucket 的 2 号 cell，下面这张图就是开始遍历时的状态：</p>
+<p></p><figure>
+	<a href="./【golang】map 详解_files/57980268-a4fa7200-7a5b-11e9-9ad1-fb2b64fe3159.png">
+		<img src="./【golang】map 详解_files/57980268-a4fa7200-7a5b-11e9-9ad1-fb2b64fe3159.png" loading="lazy" alt="map init">
+	</a>
+	
+	<figcaption>map init</figcaption>
+	
+</figure><p></p>
+<p>标红的表示起始位置，bucket 遍历顺序为：3 -&gt; 0 -&gt; 1 -&gt; 2。</p>
+<p>因为 3 号 bucket 对应老的 1 号 bucket，因此先检查老 1 号 bucket 是否已经被搬迁过。判断方法就是：</p>
+<pre><code class="language-go">    func evacuated(b *bmap) bool {
+    	h := b.tophash[0]
+    	return h &gt; empty &amp;&amp; h &lt; minTopHash
+    }
+</code></pre>
+<p>如果 b.tophash[0] 的值在标志值范围内，即在 (0,4) 区间里，说明已经被搬迁过了。</p>
+<pre><code class="language-go">    empty = 0
+    evacuatedEmpty = 1
+    evacuatedX = 2
+    evacuatedY = 3
+    minTopHash = 4
+</code></pre>
+<p>在本例中，老 1 号 bucket 已经被搬迁过了。所以它的 tophash[0] 值在 (0,4) 范围内，因此只用遍历新的 3 号 bucket。</p>
+<p>依次遍历 3 号 bucket 的 cell，这时候会找到第一个非空的 key：元素 e。到这里，mapiternext 函数返回，这时我们的遍历结果仅有一个元素：</p>
+<p></p><figure>
+	<a href="./【golang】map 详解_files/57980302-56010c80-7a5c-11e9-8263-c11ddcec2ecc.png">
+		<img src="./【golang】map 详解_files/57980302-56010c80-7a5c-11e9-8263-c11ddcec2ecc.png" loading="lazy" alt="iter res">
+	</a>
+	
+	<figcaption>iter res</figcaption>
+	
+</figure><p></p>
+<p>由于返回的 key 不为空，所以会继续调用 mapiternext 函数。</p>
+<p>继续从上次遍历到的地方往后遍历，从新 3 号 overflow bucket 中找到了元素 f 和 元素 g。</p>
+<p>遍历结果集也因此壮大：</p>
+<p></p><figure>
+	<a href="./【golang】map 详解_files/57980349-2d2d4700-7a5d-11e9-819a-a59964f70a7c.png">
+		<img src="./【golang】map 详解_files/57980349-2d2d4700-7a5d-11e9-819a-a59964f70a7c.png" loading="lazy" alt="iter res">
+	</a>
+	
+	<figcaption>iter res</figcaption>
+	
+</figure><p></p>
+<p>新 3 号 bucket 遍历完之后，回到了新 0 号 bucket。0 号 bucket 对应老的 0 号 bucket，经检查，老 0 号 bucket 并未搬迁，因此对新 0 号 bucket 的遍历就改为遍历老 0 号 bucket。那是不是把老 0 号 bucket 中的所有 key 都取出来呢？</p>
+<p>并没有这么简单，回忆一下，老 0 号 bucket 在搬迁后将裂变成 2 个 bucket：新 0 号、新 2 号。而我们此时正在遍历的只是新 0 号 bucket（注意，遍历都是遍历的 <code>*bucket</code> 指针，也就是所谓的新 buckets）。所以，我们只会取出老 0 号 bucket 中那些在裂变之后，分配到新 0 号 bucket 中的那些 key。</p>
+<p>因此，<code>lowbits == 00</code> 的将进入遍历结果集：</p>
+<p></p><figure>
+	<a href="./【golang】map 详解_files/57980449-6fa35380-7a5e-11e9-9dbf-86332ea0e215.png">
+		<img src="./【golang】map 详解_files/57980449-6fa35380-7a5e-11e9-9dbf-86332ea0e215.png" loading="lazy" alt="iter res">
+	</a>
+	
+	<figcaption>iter res</figcaption>
+	
+</figure><p></p>
+<p>和之前的流程一样，继续遍历新 1 号 bucket，发现老 1 号 bucket 已经搬迁，只用遍历新 1 号 bucket 中现有的元素就可以了。结果集变成：</p>
+<p></p><figure>
+	<a href="./【golang】map 详解_files/57980487-e8a2ab00-7a5e-11e9-8e47-050437a099fc.png">
+		<img src="./【golang】map 详解_files/57980487-e8a2ab00-7a5e-11e9-8e47-050437a099fc.png" loading="lazy" alt="iter res">
+	</a>
+	
+	<figcaption>iter res</figcaption>
+	
+</figure><p></p>
+<p>继续遍历新 2 号 bucket，它来自老 0 号 bucket，因此需要在老 0 号 bucket 中那些会裂变到新 2 号 bucket 中的 key，也就是 <code>lowbit == 10</code> 的那些 key。</p>
+<p>这样，遍历结果集变成：</p>
+<p></p><figure>
+	<a href="./【golang】map 详解_files/57980574-ae85d900-7a5f-11e9-8050-ae314a90ee05.png">
+		<img src="./【golang】map 详解_files/57980574-ae85d900-7a5f-11e9-8050-ae314a90ee05.png" loading="lazy" alt="iter res">
+	</a>
+	
+	<figcaption>iter res</figcaption>
+	
+</figure><p></p>
+<p>最后，继续遍历到新 3 号 bucket 时，发现所有的 bucket 都已经遍历完毕，整个迭代过程执行完毕。</p>
+<p>顺便说一下，如果碰到 key 是 <code>math.NaN()</code> 这种的，处理方式类似。核心还是要看它被分裂后具体落入哪个 bucket。只不过只用看它 top hash 的最低位。如果 top hash 的最低位是 0 ，分配到 X part；如果是 1 ，则分配到 Y part。据此决定是否取出 key，放到遍历结果集里。</p>
+<p>map 遍历的核心在于理解 2 倍扩容时，老 bucket 会分裂到 2 个新 bucket 中去。而遍历操作，会按照新 bucket 的序号顺序进行，碰到老 bucket 未搬迁的情况时，要在老 bucket 中找到将来要搬迁到新 bucket 来的 key。</p>
+<h2 id="map-的赋值">map 的赋值</h2>
+<p>通过汇编语言可以看到，向 map 中插入或者修改 key，最终调用的是 <code>mapassign</code> 函数。</p>
+<p>实际上插入或修改 key 的语法是一样的，只不过前者操作的 key 在 map 中不存在，而后者操作的 key 存在 map 中。</p>
+<p>mapassign 有一个系列的函数，根据 key 类型的不同，编译器会将其优化为相应的 “快速函数”。</p>
+<p>key 类型</p>
+<p>插入</p>
+<pre><code>uint32
+
+mapassign_fast32(t *maptype, h *hmap, key uint32) unsafe.Pointer
+
+uint64
+
+mapassign_fast64(t *maptype, h *hmap, key uint64) unsafe.Pointer
+
+string
+
+mapassign_faststr(t *maptype, h *hmap, ky string) unsafe.Pointer
+</code></pre>
+<p>我们只用研究最一般的赋值函数 <code>mapassign</code>。</p>
+<p>整体来看，流程非常得简单：对 key 计算 hash 值，根据 hash 值按照之前的流程，找到要赋值的位置（可能是插入新 key，也可能是更新老 key），对相应位置进行赋值。</p>
+<p>源码大体和之前讲的类似，核心还是一个双层循环，外层遍历 bucket 和它的 overflow bucket，内层遍历整个 bucket 的各个 cell。限于篇幅，这部分代码的注释我也不展示了，有兴趣的可以去看，保证理解了这篇文章内容后，能够看懂。</p>
+<p>我这里会针对这个过程提几点重要的。</p>
+<p>函数首先会检查 map 的标志位 flags。如果 flags 的写标志位此时被置 1 了，说明有其他协程在执行 “写” 操作，进而导致程序 panic。这也说明了 map 对协程是不安全的。</p>
+<p>通过前文我们知道扩容是渐进式的，如果 map 处在扩容的过程中，那么当 key 定位到了某个 bucket 后，需要确保这个 bucket 对应的老 bucket 完成了迁移过程。即老 bucket 里的 key 都要迁移到新的 bucket 中来（分裂到 2 个新 bucket），才能在新的 bucket 中进行插入或者更新的操作。</p>
+<p>上面说的操作是在函数靠前的位置进行的，只有进行完了这个搬迁操作后，我们才能放心地在新 bucket 里定位 key 要安置的地址，再进行之后的操作。</p>
+<p>现在到了定位 key 应该放置的位置了，所谓找准自己的位置很重要。准备两个指针，一个（<code>inserti</code>）指向 key 的 hash 值在 tophash 数组所处的位置，另一个 (<code>insertk</code>) 指向 cell 的位置（也就是 key 最终放置的地址），当然，对应 value 的位置就很容易定位出来了。这三者实际上都是关联的，在 tophash 数组中的索引位置决定了 key 在整个 bucket 中的位置（共 8 个 key），而 value 的位置需要 “跨过” 8 个 key 的长度。</p>
+<p>在循环的过程中，inserti 和 insertk 分别指向第一个找到的空闲的 cell。如果之后在 map 没有找到 key 的存在，也就是说原来 map 中没有此 key，这意味着插入新 key。那最终 key 的安置地址就是第一次发现的 “空位”（tophash 是 empty）。</p>
+<p>如果这个 bucket 的 8 个 key 都已经放置满了，那在跳出循环后，发现 inserti 和 insertk 都是空，这时候需要在 bucket 后面挂上 overflow bucket。当然，也有可能是在 overflow bucket 后面再挂上一个 overflow bucket。这就说明，太多 key hash 到了此 bucket。</p>
+<p>在正式安置 key 之前，还要检查 map 的状态，看它是否需要进行扩容。如果满足扩容的条件，就主动触发一次扩容操作。</p>
+<p>这之后，整个之前的查找定位 key 的过程，还得再重新走一次。因为扩容之后，key 的分布都发生了变化。</p>
+<p>最后，会更新 map 相关的值，如果是插入新 key，map 的元素数量字段 count 值会加 1；在函数之初设置的 <code>hashWriting</code> 写标志出会清零。</p>
+<p>另外，有一个重要的点要说一下。前面说的找到 key 的位置，进行赋值操作，实际上并不准确。我们看 <code>mapassign</code> 函数的原型就知道，函数并没有传入 value 值，所以赋值操作是什么时候执行的呢？</p>
+<pre><code class="language-go">    func mapassign(t *maptype, h *hmap, key unsafe.Pointer) unsafe.Pointer
+    
+
+答案还得从汇编语言中寻找。我直接揭晓答案，有兴趣可以私下去研究一下。`mapassign` 函数返回的指针就是指向的 key 所对应的 value 值位置，有了地址，就很好操作赋值了。
+
+map 的删除
+-------
+
+写操作底层的执行函数是 `mapdelete`：
+```go
+    func mapdelete(t *maptype, h *hmap, key unsafe.Pointer) 
+</code></pre>
+<p>根据 key 类型的不同，删除操作会被优化成更具体的函数：</p>
+<p>key 类型</p>
+<p>删除</p>
+<pre><code>uint32
+
+mapdelete_fast32(t *maptype, h *hmap, key uint32)
+
+uint64
+
+mapdelete_fast64(t *maptype, h *hmap, key uint64)
+
+string
+
+mapdelete_faststr(t *maptype, h *hmap, ky string)
+</code></pre>
+<p>当然，我们只关心 <code>mapdelete</code> 函数。它首先会检查 h.flags 标志，如果发现写标位是 1，直接 panic，因为这表明有其他协程同时在进行写操作。</p>
+<p>计算 key 的哈希，找到落入的 bucket。检查此 map 如果正在扩容的过程中，直接触发一次搬迁操作。</p>
+<p>删除操作同样是两层循环，核心还是找到 key 的具体位置。寻找过程都是类似的，在 bucket 中挨个 cell 寻找。</p>
+<p>找到对应位置后，对 key 或者 value 进行 “清零” 操作：</p>
+<pre><code class="language-go">    // 对 key 清零
+    if t.indirectkey {
+    	*(*unsafe.Pointer)(k) = nil
+    } else {
+    	typedmemclr(t.key, k)
+    }
+    
+    // 对 value 清零
+    if t.indirectvalue {
+    	*(*unsafe.Pointer)(v) = nil
+    } else {
+    	typedmemclr(t.elem, v)
+    }
+</code></pre>
+<p>最后，将 count 值减 1，将对应位置的 tophash 值置成 <code>Empty</code>。</p>
+<p>这块源码同样比较简单，感兴起直接去看代码。</p>
+<h2 id="map-进阶">map 进阶</h2>
+<h2 id="可以边遍历边删除吗">可以边遍历边删除吗</h2>
+<p>map 并不是一个线程安全的数据结构。同时读写一个 map 是未定义的行为，如果被检测到，会直接 panic。</p>
+<p>一般而言，这可以通过读写锁来解决：<code>sync.RWMutex</code>。</p>
+<p>读之前调用 <code>RLock()</code> 函数，读完之后调用 <code>RUnlock()</code> 函数解锁；写之前调用 <code>Lock()</code> 函数，写完之后，调用 <code>Unlock()</code> 解锁。</p>
+<p>另外，<code>sync.Map</code> 是线程安全的 map，也可以使用。它的实现原理，这次先不说了。</p>
+<h2 id="key-可以是-float-型吗">key 可以是 float 型吗？</h2>
+<p>从语法上看，是可以的。Go 语言中只要是可比较的类型都可以作为 key。除开 slice，map，functions 这几种类型，其他类型都是 OK 的。具体包括：布尔值、数字、字符串、指针、通道、接口类型、结构体、只包含上述类型的数组。这些类型的共同特征是支持 <code>==</code> 和 <code>!=</code> 操作符，<code>k1 == k2</code> 时，可认为 k1 和 k2 是同一个 key。如果是结构体，则需要它们的字段值都相等，才被认为是相同的 key。</p>
+<p>顺便说一句，任何类型都可以作为 value，包括 map 类型。</p>
+<p>来看个例子：</p>
+<pre><code class="language-go">    func main() {
+    	m := make(map[float64]int)
+    	m[1.4] = 1
+    	m[2.4] = 2
+    	m[math.NaN()] = 3
+    	m[math.NaN()] = 3
+    
+    	for k, v := range m {
+    		fmt.Printf("[%v, %d] ", k, v)
+    	}
+    
+    	fmt.Printf("\nk: %v, v: %d\n", math.NaN(), m[math.NaN()])
+    	fmt.Printf("k: %v, v: %d\n", 2.400000000001, m[2.400000000001])
+    	fmt.Printf("k: %v, v: %d\n", 2.4000000000000000000000001, m[2.4000000000000000000000001])
+    
+    	fmt.Println(math.NaN() == math.NaN())
+    }
+</code></pre>
+<p>程序的输出：</p>
+<pre><code class="language-go">    [2.4, 2] [NaN, 3] [NaN, 3] [1.4, 1] 
+    k: NaN, v: 0
+    k: 2.400000000001, v: 0
+    k: 2.4, v: 2
+    false
+</code></pre>
+<p>例子中定义了一个 key 类型是 float 型的 map，并向其中插入了 4 个 key：1.4， 2.4， NAN，NAN。</p>
+<p>打印的时候也打印出了 4 个 key，如果你知道 NAN != NAN，也就不奇怪了。因为他们比较的结果不相等，自然，在 map 看来就是两个不同的 key 了。</p>
+<p>接着，我们查询了几个 key，发现 NAN 不存在，2.400000000001 也不存在，而 2.4000000000000000000000001 却存在。</p>
+<p>有点诡异，不是吗？</p>
+<p>接着，我通过汇编发现了如下的事实：</p>
+<p>当用 float64 作为 key 的时候，先要将其转成 unit64 类型，再插入 key 中。</p>
+<p>具体是通过 <code>Float64frombits</code> 函数完成：</p>
+<pre><code class="language-go">    // Float64frombits returns the floating point number corresponding
+    // the IEEE 754 binary representation b.
+    func Float64frombits(b uint64) float64 { return *(*float64)(unsafe.Pointer(&amp;b)) }
+</code></pre>
+<p>也就是将浮点数表示成 IEEE 754 规定的格式。如赋值语句：</p>
+<pre><code class="language-go">    0x00bd 00189 (test18.go:9)      LEAQ    "".statictmp_0(SB), DX
+    0x00c4 00196 (test18.go:9)      MOVQ    DX, 16(SP)
+    0x00c9 00201 (test18.go:9)      PCDATA  $0, $2
+    0x00c9 00201 (test18.go:9)      CALL    runtime.mapassign(SB)
+</code></pre>
+<p><code>"".statictmp_0(SB)</code> 变量是这样的：</p>
+<pre><code class="language-go">    "".statictmp_0 SRODATA size=8
+            0x0000 33 33 33 33 33 33 03 40
+    "".statictmp_1 SRODATA size=8
+            0x0000 ff 3b 33 33 33 33 03 40
+    "".statictmp_2 SRODATA size=8
+            0x0000 33 33 33 33 33 33 03 40
+</code></pre>
+<p>我们再来输出点东西：</p>
+<pre><code class="language-go">    package main
+    
+    import (
+    	"fmt"
+    	"math"
+    )
+    
+    func main() {
+    	m := make(map[float64]int)
+    	m[2.4] = 2
+    
+        fmt.Println(math.Float64bits(2.4))
+    	fmt.Println(math.Float64bits(2.400000000001))
+    	fmt.Println(math.Float64bits(2.4000000000000000000000001))
+    }
+
+    4612586738352864255
+    4612586738352862003
+    4612586738352862003
+</code></pre>
+<p>转成十六进制为：</p>
+<pre><code class="language-go">    0x4003333333333333
+    0x4003333333333BFF
+    0x4003333333333333
+</code></pre>
+<p>和前面的 <code>"".statictmp_0</code> 比较一下，很清晰了吧。<code>2.4</code> 和 <code>2.4000000000000000000000001</code> 经过 <code>math.Float64bits()</code> 函数转换后的结果是一样的。自然，二者在 map 看来，就是同一个 key 了。</p>
+<p>再来看一下 NAN（not a number）：</p>
+<pre><code class="language-go">    // NaN returns an IEEE 754 ``not-a-number'' value.
+    func NaN() float64 { return Float64frombits(uvnan) }
+</code></pre>
+<p>uvan 的定义为：</p>
+<pre><code class="language-go">    uvnan    = 0x7FF8000000000001
+</code></pre>
+<p>NAN() 直接调用 <code>Float64frombits</code>，传入写死的 const 型变量 <code>0x7FF8000000000001</code>，得到 NAN 型值。既然，NAN 是从一个常量解析得来的，为什么插入 map 时，会被认为是不同的 key？</p>
+<p>这是由类型的哈希函数决定的，例如，对于 64 位的浮点数，它的哈希函数如下：</p>
+<pre><code class="language-go">    func f64hash(p unsafe.Pointer, h uintptr) uintptr {
+    	f := *(*float64)(p)
+    	switch {
+    	case f == 0:
+    		return c1 * (c0 ^ h) // +0, -0
+    	case f != f:
+    		return c1 * (c0 ^ h ^ uintptr(fastrand())) // any kind of NaN
+    	default:
+    		return memhash(p, h, 8)
+    	}
+    }
+</code></pre>
+<p>第二个 case，<code>f != f</code> 就是针对 <code>NAN</code>，这里会再加一个随机数。</p>
+<p>这样，所有的谜题都解开了。</p>
+<p>由于 NAN 的特性：</p>
+<pre><code class="language-go">    NAN != NAN
+    hash(NAN) != hash(NAN)
+</code></pre>
+<p>因此向 map 中查找的 key 为 NAN 时，什么也查不到；如果向其中增加了 4 次 NAN，遍历会得到 4 个 NAN。</p>
+<p>最后说结论：float 型可以作为 key，但是由于精度的问题，会导致一些诡异的问题，慎用之。</p>
+<h2 id="总结">总结</h2>
+<p>在写作本文时，有些问题看遍了中文世界的博客都没能找到解答。当然，源码可以解答任何问题。但是，你不能一下子跳进源码的细节，你得先有一个整体的认识才好。</p>
+<p>所以，我开始搜索英文相关讲源码的文章，没有太多这方面的。但是我发现了一篇质量很高的文章，放在了参考资料第一条，它带领读者一步步优化，最终实现了从 map 中随机取出一个 key。推荐你去阅读，非常精彩。尤其是你知道了 map 的底层遍历、扩容的具体过程后更是如此。</p>
+<p>总结一下，Go 语言中，通过哈希查找表实现 map，用链表法解决哈希冲突。</p>
+<p>通过 key 的哈希值将 key 散落到不同的桶中，每个桶中有 8 个 cell。哈希值的低位决定桶序号，高位标识同一个桶中的不同 key。</p>
+<p>当向桶中添加了很多 key，造成元素过多，或者溢出桶太多，就会触发扩容。扩容分为等量扩容和 2 倍容量扩容。扩容后，原来一个 bucket 中的 key 一分为二，会被重新分配到两个桶中。</p>
+<p>扩容过程是渐进的，主要是防止一次扩容需要搬迁的 key 数量过多，引发性能问题。触发扩容的时机是增加了新元素，bucket 搬迁的时机则发生在赋值、删除期间，每次最多搬迁两个 bucket。</p>
+<p>查找、赋值、删除的一个很核心的内容是如何定位到 key 所在的位置，需要重点理解。一旦理解，关于 map 的源码就可以看懂了。</p>
+<p>最后，如果文章对你有帮助，恳请你帮我分享一下，或者点一下在看，谢谢！</p>
+<p>最后的最后，点击<a class="link" href="https://github.com/qcrao/Go-Questions" target="_blank" rel="noopener">阅读原文</a>，你可能会参与见证一个从零开始的千星项目。</p>
+<h2 id="参考资料">参考资料</h2>
+<p>【english 如何实现随机取一个 map 的 key，非常精彩】<a class="link" href="https://lukechampine.com/hackmap.html" target="_blank" rel="noopener">https://lukechampine.com/hackmap.html</a></p>
+<p>【map 的维基百科】<a class="link" href="https://en.wikipedia.org/wiki/Associative_array" target="_blank" rel="noopener">https://en.wikipedia.org/wiki/Associative_array</a></p>
+<p>【sync.map 源码分析】<a class="link" href="https://github.com/Chasiny/Blog/blob/master/blog/go/sync.Map%E6%BA%90%E7%A0%81%E5%88%86%E6%9E%90.md" target="_blank" rel="noopener">https://github.com/Chasiny/Blog/blob/master/blog/go/sync.Map 源码分析. md</a></p>
+<p>【各种 map 相关操作的流程图】<a class="link" href="https://www.jianshu.com/p/aa0d4808cbb8" target="_blank" rel="noopener">https://www.jianshu.com/p/aa0d4808cbb8</a></p>
+<p>【map 源码分析】<a class="link" href="https://www.twblogs.net/a/5bd78d5d2b71777ac86b541f" target="_blank" rel="noopener">https://www.twblogs.net/a/5bd78d5d2b71777ac86b541f</a></p>
+<p>【曹大关于 map 的文章 不用解释】<a class="link" href="https://github.com/cch123/golang-notes/blob/master/map.md" target="_blank" rel="noopener">https://github.com/cch123/golang-notes/blob/master/map.md</a></p>
+<p>【english 有图】<a class="link" href="https://www.ardanlabs.com/blog/2013/12/macro-view-of-map-internals-in-go.html" target="_blank" rel="noopener">https://www.ardanlabs.com/blog/2013/12/macro-view-of-map-internals-in-go.html</a></p>
+<p>【english 对比了 java, c++ 的 map 实现】<a class="link" href="https://dave.cheney.net/2018/05/29/how-the-go-runtime-implements-maps-efficiently-without-generics" target="_blank" rel="noopener">https://dave.cheney.net/2018/05/29/how-the-go-runtime-implements-maps-efficiently-without-generics</a></p>
+<p>【english 为什么 go map 对竞争敏感】<a class="link" href="https://dave.cheney.net/2015/12/07/are-go-maps-sensitive-to-data-races" target="_blank" rel="noopener">https://dave.cheney.net/2015/12/07/are-go-maps-sensitive-to-data-races</a></p>
+<p>【golang blog map】<a class="link" href="https://blog.golang.org/go-maps-in-action" target="_blank" rel="noopener">https://blog.golang.org/go-maps-in-action</a></p>
+<p>【randommap 开源代码】<a class="link" href="https://github.com/lukechampine/randmap" target="_blank" rel="noopener">https://github.com/lukechampine/randmap</a></p>
+<p>【图不错】<a class="link" href="https://hacpai.com/article/1533916370874" target="_blank" rel="noopener">https://hacpai.com/article/1533916370874</a></p>
+<p>【夜读 issue】<a class="link" href="https://github.com/developer-learning/reading-go/issues/332" target="_blank" rel="noopener">https://github.com/developer-learning/reading-go/issues/332</a></p>
+<p>【新发现的博客，很有深度】<a class="link" href="https://draveness.me/golang-hashmap" target="_blank" rel="noopener">https://draveness.me/golang-hashmap</a></p>
+<p>【扩容过程 + 图】<a class="link" href="https://my.oschina.net/renhc/blog/2208417" target="_blank" rel="noopener">https://my.oschina.net/renhc/blog/2208417</a></p>
+<p>【运算符】<a class="link" href="https://juejin.im/post/5c0e572fe51d4522ad6e59d5" target="_blank" rel="noopener">https://juejin.im/post/5c0e572fe51d4522ad6e59d5</a></p>
+<p>【english】<a class="link" href="https://www.digitalocean.com/community/tutorials/understanding-maps-in-go" target="_blank" rel="noopener">https://www.digitalocean.com/community/tutorials/understanding-maps-in-go</a></p>
+<p>【map 遍历 源码简单阐述】<a class="link" href="https://gocn.vip/article/1704" target="_blank" rel="noopener">https://gocn.vip/article/1704</a></p>
+<p>【短文，同时遍历、删除 key 是可以的】<a class="link" href="https://cloud.tencent.com/developer/article/1065474" target="_blank" rel="noopener">https://cloud.tencent.com/developer/article/1065474</a></p>
+<p>【面向信仰编程，golang range】<a class="link" href="https://draveness.me/golang-for-range" target="_blank" rel="noopener">https://draveness.me/golang-for-range</a></p>
+<p>【slice 和 map 作为参数的区别】<a class="link" href="https://stackoverflow.com/questions/47590444/slice-vs-map-to-be-used-in-parameter/47590531#47590531" target="_blank" rel="noopener">https://stackoverflow.com/questions/47590444/slice-vs-map-to-be-used-in-parameter/47590531#47590531</a></p>
+<p>【Go 官方博客关于 map】<a class="link" href="https://blog.golang.org/go-maps-in-action" target="_blank" rel="noopener">https://blog.golang.org/go-maps-in-action</a></p>
+<p>【Go 语言可比较类型】<a class="link" href="https://golang.org/ref/spec#Comparison_operators" target="_blank" rel="noopener">https://golang.org/ref/spec#Comparison_operators</a></p>
+<p>【key 类型】<a class="link" href="http://lanlingzi.cn/post/technical/2016/0904_go_map/" target="_blank" rel="noopener">http://lanlingzi.cn/post/technical/2016/0904_go_map/</a></p>
+<p>【哈希函数性能比较】<a class="link" href="http://aras-p.info/blog/2016/08/09/More-Hash-Function-Tests/" target="_blank" rel="noopener">http://aras-p.info/blog/2016/08/09/More-Hash-Function-Tests/</a></p>
+<p>【哈希函数选择，C++/Java 对比】<a class="link" href="https://studygolang.com/articles/15839" target="_blank" rel="noopener">https://studygolang.com/articles/15839</a></p>
+<p>【slice 和 map 作为函数参数】<a class="link" href="https://stackoverflow.com/questions/47590444/slice-vs-map-to-be-used-in-parameter/47590531#47590531" target="_blank" rel="noopener">https://stackoverflow.com/questions/47590444/slice-vs-map-to-be-used-in-parameter/47590531#47590531</a></p>
+<p>【煎鱼大佬博客 map1】<a class="link" href="https://github.com/EDDYCJY/blog/blob/master/golang/pkg/2019-03-04-%E6%B7%B1%E5%85%A5%E7%90%86%E8%A7%A3Go-map-%E5%88%9D%E5%A7%8B%E5%8C%96%E5%92%8C%E8%AE%BF%E9%97%AE%E5%85%83%E7%B4%A0.md" target="_blank" rel="noopener">https://github.com/EDDYCJY/blog/blob/master/golang/pkg/2019-03-04 - 深入理解 Go-map - 初始化和访问元素. md</a></p>
+<p>【煎鱼大佬博客 map2】<a class="link" href="https://github.com/EDDYCJY/blog/blob/master/golang/pkg/2019-03-24-%E6%B7%B1%E5%85%A5%E7%90%86%E8%A7%A3Go-map-%E8%B5%8B%E5%80%BC%E5%92%8C%E6%89%A9%E5%AE%B9%E8%BF%81%E7%A7%BB.md" target="_blank" rel="noopener">https://github.com/EDDYCJY/blog/blob/master/golang/pkg/2019-03-24 - 深入理解 Go-map - 赋值和扩容迁移. md</a></p>
+<p>【哈希函数的定义】<a class="link" href="http://zhangshuai.ren/2018/05/16/%E6%95%A3%E5%88%97%E7%AE%97%E6%B3%95%E5%AE%9E%E7%8E%B0Go%E8%AF%AD%E8%A8%80Map%E5%87%BD%E6%95%B0/" target="_blank" rel="noopener">http://zhangshuai.ren/2018/05/16 / 散列算法实现 Go 语言 Map 函数 /</a></p>
+<p>【如何比较两个 map 相等】<a class="link" href="https://golangbot.com/maps/" target="_blank" rel="noopener">https://golangbot.com/maps/</a></p>
+<p>【NAN hash】<a class="link" href="https://research.swtch.com/randhash" target="_blank" rel="noopener">https://research.swtch.com/randhash</a></p>
+<p>【并发安全阐述】<a class="link" href="http://zjykzk.github.io/post/cs/golang/map/" target="_blank" rel="noopener">http://zjykzk.github.io/post/cs/golang/map/</a></p>
+
+</section>
+
+
+    <footer class="article-footer">
+    
+
+    </footer>
+
+
+    
+</article>
+
+    <aside class="related-contents--wrapper">
+    
+    
+        <h2 class="section-title">相关文章</h2>
+        <div class="related-contents">
+            <div class="flex article-list--tile">
+                
+                    
+<article class="has-image">
+    <a href="https://www.ququ123.top/2024/03/ququ-blog/">
+        
+        
+            <div class="article-image">
+                
+                    <img src="./【golang】map 详解_files/cover_huc22343089de730f0d2df13b87c6ac902_47227_800x0_resize_box_3.png" loading="lazy" data-key="ququ-blog" data-hash="http://img.ququ123.top/img/cover_huc22343089de730f0d2df13b87c6ac902_47227_800x0_resize_box_3.png">
+                
+            </div>
+        
+
+        <div class="article-details" style="background: linear-gradient(0deg, rgba(96, 66, 45, 0.5) 0%, rgba(241, 204, 23, 0.75) 100%);">
+            <h2 class="article-title">博客导航</h2>
+        </div>
+    </a>
+</article>
+                
+                    
+<article class="has-image">
+    <a href="https://www.ququ123.top/2024/03/golang-netpoller/">
+        
+        
+            <div class="article-image">
+                
+                    <img src="./【golang】map 详解_files/netpoller-goroutines-scheduling.png" loading="lazy" data-key="golang-netpoller" data-hash="https://img.ququ123.top/img/netpoller-goroutines-scheduling.png">
+                
+            </div>
+        
+
+        <div class="article-details" style="background: linear-gradient(0deg, rgba(92, 100, 116, 0.5) 0%, rgba(240, 162, 102, 0.75) 100%);">
+            <h2 class="article-title">【golang】netpoller 详解</h2>
+        </div>
+    </a>
+</article>
+                
+                    
+<article class="has-image">
+    <a href="https://www.ququ123.top/2024/03/golang-pipe/">
+        
+        
+            <div class="article-image">
+                
+                    <img src="./【golang】map 详解_files/go-pipe.png" loading="lazy" data-key="golang-pipe" data-hash="https://img.ququ123.top/img/go-pipe.png">
+                
+            </div>
+        
+
+        <div class="article-details" style="background: linear-gradient(0deg, rgba(60, 68, 76, 0.5) 0%, rgba(177, 78, 111, 0.75) 100%);">
+            <h2 class="article-title">【golang】pipe 详解</h2>
+        </div>
+    </a>
+</article>
+                
+            </div>
+        </div>
+    
+</aside>
+
+     
+     
+        
+    
+  
+  <link rel="stylesheet" href="./【golang】map 详解_files/waline.css">
+  
+
+
+  
+  <div id="waline" data-v-app=""><div data-waline=""><!--v-if--><div class="wl-comment"><!--v-if--><div class="wl-panel"><div class="wl-header item3"><div class="wl-header-item"><label for="wl-nick">昵称</label><input id="wl-nick" class="wl-input wl-nick" name="nick" type="text"></div><div class="wl-header-item"><label for="wl-mail">邮箱</label><input id="wl-mail" class="wl-input wl-mail" name="mail" type="email"></div><div class="wl-header-item"><label for="wl-link">网址</label><input id="wl-link" class="wl-input wl-link" name="link" type="text"></div></div><textarea id="wl-edit" class="wl-editor" placeholder="欢迎评论"></textarea><div class="wl-preview" style="display: none;"><hr><h4>预览:</h4><div class="wl-content"></div></div><div class="wl-footer"><div class="wl-actions"><a href="https://guides.github.com/features/mastering-markdown/" title="Markdown Guide" aria-label="Markdown is supported" class="wl-action" target="_blank" rel="noopener noreferrer"><svg width="16" height="16" ariaHidden="true"><path d="M14.85 3H1.15C.52 3 0 3.52 0 4.15v7.69C0 12.48.52 13 1.15 13h13.69c.64 0 1.15-.52 1.15-1.15v-7.7C16 3.52 15.48 3 14.85 3zM9 11H7V8L5.5 9.92 4 8v3H2V5h2l1.5 2L7 5h2v6zm2.99.5L9.5 8H11V5h2v3h1.5l-2.51 3.5z" fill="currentColor"></path></svg></a><button type="button" class="wl-action" title="表情" style=""><svg viewBox="0 0 1024 1024" width="24" height="24"><path d="M563.2 463.3 677 540c1.7 1.2 3.7 1.8 5.8 1.8.7 0 1.4-.1 2-.2 2.7-.5 5.1-2.1 6.6-4.4l25.3-37.8c1.5-2.3 2.1-5.1 1.6-7.8s-2.1-5.1-4.4-6.6l-73.6-49.1 73.6-49.1c2.3-1.5 3.9-3.9 4.4-6.6.5-2.7 0-5.5-1.6-7.8l-25.3-37.8a10.1 10.1 0 0 0-6.6-4.4c-.7-.1-1.3-.2-2-.2-2.1 0-4.1.6-5.8 1.8l-113.8 76.6c-9.2 6.2-14.7 16.4-14.7 27.5.1 11 5.5 21.3 14.7 27.4zM387 348.8h-45.5c-5.7 0-10.4 4.7-10.4 10.4v153.3c0 5.7 4.7 10.4 10.4 10.4H387c5.7 0 10.4-4.7 10.4-10.4V359.2c0-5.7-4.7-10.4-10.4-10.4zm333.8 241.3-41-20a10.3 10.3 0 0 0-8.1-.5c-2.6.9-4.8 2.9-5.9 5.4-30.1 64.9-93.1 109.1-164.4 115.2-5.7.5-9.9 5.5-9.5 11.2l3.9 45.5c.5 5.3 5 9.5 10.3 9.5h.9c94.8-8 178.5-66.5 218.6-152.7 2.4-5 .3-11.2-4.8-13.6zm186-186.1c-11.9-42-30.5-81.4-55.2-117.1-24.1-34.9-53.5-65.6-87.5-91.2-33.9-25.6-71.5-45.5-111.6-59.2-41.2-14-84.1-21.1-127.8-21.1h-1.2c-75.4 0-148.8 21.4-212.5 61.7-63.7 40.3-114.3 97.6-146.5 165.8-32.2 68.1-44.3 143.6-35.1 218.4 9.3 74.8 39.4 145 87.3 203.3.1.2.3.3.4.5l36.2 38.4c1.1 1.2 2.5 2.1 3.9 2.6 73.3 66.7 168.2 103.5 267.5 103.5 73.3 0 145.2-20.3 207.7-58.7 37.3-22.9 70.3-51.5 98.1-85 27.1-32.7 48.7-69.5 64.2-109.1 15.5-39.7 24.4-81.3 26.6-123.8 2.4-43.6-2.5-87-14.5-129zm-60.5 181.1c-8.3 37-22.8 72-43 104-19.7 31.1-44.3 58.6-73.1 81.7-28.8 23.1-61 41-95.7 53.4-35.6 12.7-72.9 19.1-110.9 19.1-82.6 0-161.7-30.6-222.8-86.2l-34.1-35.8c-23.9-29.3-42.4-62.2-55.1-97.7-12.4-34.7-18.8-71-19.2-107.9-.4-36.9 5.4-73.3 17.1-108.2 12-35.8 30-69.2 53.4-99.1 31.7-40.4 71.1-72 117.2-94.1 44.5-21.3 94-32.6 143.4-32.6 49.3 0 97 10.8 141.8 32 34.3 16.3 65.3 38.1 92 64.8 26.1 26 47.5 56 63.6 89.2 16.2 33.2 26.6 68.5 31 105.1 4.6 37.5 2.7 75.3-5.6 112.3z" fill="currentColor"></path></svg></button><button type="button" class="wl-action" title="表情包"><svg width="24" height="24" fill="currentcolor" viewBox="0 0 24 24"><path d="M18.968 10.5H15.968V11.484H17.984V12.984H15.968V15H14.468V9H18.968V10.5V10.5ZM8.984 9C9.26533 9 9.49967 9.09367 9.687 9.281C9.87433 9.46833 9.968 9.70267 9.968 9.984V10.5H6.499V13.5H8.468V12H9.968V14.016C9.968 14.2973 9.87433 14.5317 9.687 14.719C9.49967 14.9063 9.26533 15 8.984 15H5.984C5.70267 15 5.46833 14.9063 5.281 14.719C5.09367 14.5317 5 14.2973 5 14.016V9.985C5 9.70367 5.09367 9.46933 5.281 9.282C5.46833 9.09467 5.70267 9.001 5.984 9.001H8.984V9ZM11.468 9H12.968V15H11.468V9V9Z" style="transform: translateY(0.5px);"></path><path d="M18.5 3H5.75C3.6875 3 2 4.6875 2 6.75V18C2 20.0625 3.6875 21.75 5.75 21.75H18.5C20.5625 21.75 22.25 20.0625 22.25 18V6.75C22.25 4.6875 20.5625 3 18.5 3ZM20.75 18C20.75 19.2375 19.7375 20.25 18.5 20.25H5.75C4.5125 20.25 3.5 19.2375 3.5 18V6.75C3.5 5.5125 4.5125 4.5 5.75 4.5H18.5C19.7375 4.5 20.75 5.5125 20.75 6.75V18Z"></path></svg></button><input id="wl-image-upload" class="upload" type="file" accept=".png,.jpg,.jpeg,.webp,.bmp,.gif"><label for="wl-image-upload" class="wl-action" title="上传图片"><svg viewBox="0 0 1024 1024" width="24" height="24"><path d="M784 112H240c-88 0-160 72-160 160v480c0 88 72 160 160 160h544c88 0 160-72 160-160V272c0-88-72-160-160-160zm96 640c0 52.8-43.2 96-96 96H240c-52.8 0-96-43.2-96-96V272c0-52.8 43.2-96 96-96h544c52.8 0 96 43.2 96 96v480z" fill="currentColor"></path><path d="M352 480c52.8 0 96-43.2 96-96s-43.2-96-96-96-96 43.2-96 96 43.2 96 96 96zm0-128c17.6 0 32 14.4 32 32s-14.4 32-32 32-32-14.4-32-32 14.4-32 32-32zm462.4 379.2-3.2-3.2-177.6-177.6c-25.6-25.6-65.6-25.6-91.2 0l-80 80-36.8-36.8c-25.6-25.6-65.6-25.6-91.2 0L200 728c-4.8 6.4-8 14.4-8 24 0 17.6 14.4 32 32 32 9.6 0 16-3.2 22.4-9.6L380.8 640l134.4 134.4c6.4 6.4 14.4 9.6 24 9.6 17.6 0 32-14.4 32-32 0-9.6-4.8-17.6-9.6-24l-52.8-52.8 80-80L769.6 776c6.4 4.8 12.8 8 20.8 8 17.6 0 32-14.4 32-32 0-8-3.2-16-8-20.8z" fill="currentColor"></path></svg></label><button type="button" class="wl-action" title="预览"><svg viewBox="0 0 1024 1024" width="24" height="24"><path d="M710.816 654.301c70.323-96.639 61.084-230.578-23.705-314.843-46.098-46.098-107.183-71.109-172.28-71.109-65.008 0-126.092 25.444-172.28 71.109-45.227 46.098-70.756 107.183-70.756 172.106 0 64.923 25.444 126.007 71.194 172.106 46.099 46.098 107.184 71.109 172.28 71.109 51.414 0 100.648-16.212 142.824-47.404l126.53 126.006c7.058 7.06 16.297 10.979 26.406 10.979 10.105 0 19.343-3.919 26.402-10.979 14.467-14.467 14.467-38.172 0-52.723L710.816 654.301zm-315.107-23.265c-65.88-65.88-65.88-172.54 0-238.42 32.069-32.07 74.245-49.149 119.471-49.149 45.227 0 87.407 17.603 119.472 49.149 65.88 65.879 65.88 172.539 0 238.42-63.612 63.178-175.242 63.178-238.943 0zm0 0" fill="currentColor"></path><path d="M703.319 121.603H321.03c-109.8 0-199.469 89.146-199.469 199.38v382.034c0 109.796 89.236 199.38 199.469 199.38h207.397c20.653 0 37.384-16.645 37.384-37.299 0-20.649-16.731-37.296-37.384-37.296H321.03c-68.582 0-124.352-55.77-124.352-124.267V321.421c0-68.496 55.77-124.267 124.352-124.267h382.289c68.582 0 124.352 55.771 124.352 124.267V524.72c0 20.654 16.736 37.299 37.385 37.299 20.654 0 37.384-16.645 37.384-37.299V320.549c-.085-109.8-89.321-198.946-199.121-198.946zm0 0" fill="currentColor"></path></svg></button></div><div class="wl-info"><div class="wl-captcha-container"></div><div class="wl-text-number">0 <!--v-if--> &nbsp;字</div><button type="button" class="wl-btn">登录</button><button type="submit" class="primary wl-btn" title="Cmd|Ctrl + Enter">提交</button></div><div class="wl-gif-popup"><input type="text" placeholder="搜索表情包"><!--v-if--><div class="wl-loading"><svg width="30" height="30" viewBox="0 0 100 100" preserveAspectRatio="xMidYMid"><circle cx="50" cy="50" fill="none" stroke="currentColor" strokeWidth="4" r="40" stroke-dasharray="85 30"><animatetransform attributeName="transform" type="rotate" repeatCount="indefinite" dur="1s" values="0 50 50;360 50 50" keyTimes="0;1"></animatetransform></circle></svg></div></div><div class="wl-emoji-popup"><div class="wl-tab-wrapper"><button type="button" title="weibo_smile"><!--v-if--></button><button type="button" title="weibo_lovely"><!--v-if--></button><button type="button" title="weibo_blush"><!--v-if--></button><button type="button" title="weibo_grin"><!--v-if--></button><button type="button" title="weibo_laugh"><!--v-if--></button><button type="button" title="weibo_joy"><!--v-if--></button><button type="button" title="weibo_angry"><!--v-if--></button><button type="button" title="weibo_bye"><!--v-if--></button><button type="button" title="weibo_hammer"><!--v-if--></button><button type="button" title="weibo_kiss"><!--v-if--></button><button type="button" title="weibo_love"><!--v-if--></button><button type="button" title="weibo_mask"><!--v-if--></button><button type="button" title="weibo_money"><!--v-if--></button><button type="button" title="weibo_quiet"><!--v-if--></button><button type="button" title="weibo_rage"><!--v-if--></button><button type="button" title="weibo_sad"><!--v-if--></button><button type="button" title="weibo_shy"><!--v-if--></button><button type="button" title="weibo_sick"><!--v-if--></button><button type="button" title="weibo_slient"><!--v-if--></button><button type="button" title="weibo_smirk"><!--v-if--></button><button type="button" title="weibo_slap"><!--v-if--></button><button type="button" title="weibo_antic"><!--v-if--></button><button type="button" title="weibo_desire"><!--v-if--></button><button type="button" title="weibo_longing"><!--v-if--></button><button type="button" title="weibo_no_idea"><!--v-if--></button><button type="button" title="weibo_look_down"><!--v-if--></button><button type="button" title="weibo_clap"><!--v-if--></button><button type="button" title="weibo_yum"><!--v-if--></button><button type="button" title="weibo_sleep"><!--v-if--></button><button type="button" title="weibo_dizzy_face"><!--v-if--></button><button type="button" title="weibo_chuckle"><!--v-if--></button><button type="button" title="weibo_disappointed"><!--v-if--></button><button type="button" title="weibo_flushed"><!--v-if--></button><button type="button" title="weibo_heart_eyes"><!--v-if--></button><button type="button" title="weibo_no"><!--v-if--></button><button type="button" title="weibo_shuai"><!--v-if--></button><button type="button" title="weibo_suprised"><!--v-if--></button><button type="button" title="weibo_think"><!--v-if--></button><button type="button" title="weibo_vomit"><!--v-if--></button><button type="button" title="weibo_scream"><!--v-if--></button><button type="button" title="weibo_sleepy"><!--v-if--></button><button type="button" title="weibo_sob"><!--v-if--></button><button type="button" title="weibo_sunglasses"><!--v-if--></button><button type="button" title="weibo_greddy"><!--v-if--></button><button type="button" title="weibo_pick_nose"><!--v-if--></button><button type="button" title="weibo_annoyed"><!--v-if--></button><button type="button" title="weibo_awkward"><!--v-if--></button><button type="button" title="weibo_confused"><!--v-if--></button><button type="button" title="weibo_grievance"><!--v-if--></button><button type="button" title="weibo_poor"><!--v-if--></button><button type="button" title="weibo_wink"><!--v-if--></button><button type="button" title="weibo_rolling_eyes"><!--v-if--></button><button type="button" title="weibo_watermalon"><!--v-if--></button><button type="button" title="weibo_annoyed_left"><!--v-if--></button><button type="button" title="weibo_annoyed_right"><!--v-if--></button><button type="button" title="weibo_yawn"><!--v-if--></button><button type="button" title="weibo_hufen"><!--v-if--></button><button type="button" title="weibo_doge"><!--v-if--></button><button type="button" title="weibo_husky"><!--v-if--></button><button type="button" title="weibo_dog_annoyed"><!--v-if--></button><button type="button" title="weibo_dog_bye"><!--v-if--></button><button type="button" title="weibo_dog_consider"><!--v-if--></button><button type="button" title="weibo_dog_cry"><!--v-if--></button><button type="button" title="weibo_dog_joy"><!--v-if--></button><button type="button" title="weibo_dog_laugh"><!--v-if--></button><button type="button" title="weibo_dog_sweat"><!--v-if--></button><button type="button" title="weibo_dog_think"><!--v-if--></button><button type="button" title="weibo_dog_yum"><!--v-if--></button><button type="button" title="weibo_cat"><!--v-if--></button><button type="button" title="weibo_cat_annoyed"><!--v-if--></button><button type="button" title="weibo_cat_bye"><!--v-if--></button><button type="button" title="weibo_cat_cry"><!--v-if--></button><button type="button" title="weibo_cat_think"><!--v-if--></button><button type="button" title="weibo_girl_annoyed"><!--v-if--></button><button type="button" title="weibo_boy"><!--v-if--></button><button type="button" title="weibo_girl"><!--v-if--></button><button type="button" title="weibo_panda"><!--v-if--></button><button type="button" title="weibo_pig"><!--v-if--></button><button type="button" title="weibo_rabbit"><!--v-if--></button><button type="button" title="weibo_ultraman"><!--v-if--></button><button type="button" title="weibo_wool_group"><!--v-if--></button><button type="button" title="weibo_yan"><!--v-if--></button><button type="button" title="weibo_xi"><!--v-if--></button><button type="button" title="weibo_soap"><!--v-if--></button><button type="button" title="weibo_meng"><!--v-if--></button><button type="button" title="weibo_jiong"><!--v-if--></button><button type="button" title="weibo_geili"><!--v-if--></button><button type="button" title="weibo_shenma"><!--v-if--></button><button type="button" title="weibo_alpaca"><!--v-if--></button></div><!--v-if--></div></div></div><!--v-if--></div><div class="wl-meta-head"><div class="wl-count"><!--v-if--> 评论</div><ul class="wl-sort"><li class="active">按正序</li><li class="">按倒序</li><li class="">按热度</li></ul></div><div class="wl-cards"></div><div class="wl-operation"><button type="button" class="wl-btn">刷新</button></div><div class="wl-power"> Powered by <a href="https://github.com/walinejs/waline" target="_blank" rel="noopener noreferrer"> Waline </a> v3.0.0-alpha.2</div></div></div>
+  <script type="module">
+    import { init } from 'https://unpkg.com/@waline/client@3.0.0-alpha.2/dist/waline.mjs';
+
+    init({
+      el: '#waline',
+      serverURL: 'https://comment.ququ123.top',
+    });
+  </script>
+
+
+
+    
+
+    <footer class="site-footer">
+  
+
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+
+<script>
+(function(u, c) {
+  var d = document, t = 'script', o = d.createElement(t),
+      s = d.getElementsByTagName(t)[0];
+  o.src = u;
+  if (c) { o.addEventListener('load', function(e) { c(e); }); }
+  s.parentNode.insertBefore(o, s);
+})('//cdn.bootcss.com/pangu/3.3.0/pangu.min.js', function() {
+  pangu.spacingPage();
+});
+</script>
+
+
+  © 
+  
+      2020 - 
+  
+  2024 
+<a href="https://www.ququ123.top/">&nbsp;&nbsp;&nbsp;去去的博客</a>
+  <br>
+        运行: <a id="days">755</a> 天&nbsp;&nbsp;&nbsp;
+        书写: 562.6k 字  &nbsp;&nbsp;&nbsp;
+        69 篇文章
+  <br> 
+
+  总访客数: <span id="busuanzi_value_site_uv">984</span> &nbsp;&nbsp;&nbsp;
+  总访问量: <span id="busuanzi_value_site_pv">8723</span> &nbsp;&nbsp;&nbsp;
+<section class="powerby">
+  <br>
+    <section class="BeiAn-info">
+备案号：
+  <a target="_blank" href="http://beian.miit.gov.cn/" style="color:#0000ff" rel="nofollow">赣 ICP 备 2022002813 号 - 2</a> | 
+  
+
+    </section>
+</section>
+
+<script>
+var s1 = '2022-04-12';
+s1 = new Date(s1.replace(/-/g, "/"));
+s2 = new Date();
+var days = s2.getTime() - s1.getTime();
+var number_of_days = parseInt(days / (1000 * 60 * 60 * 24));
+document.getElementById('days').innerHTML = number_of_days;
+</script>
+
+
+
+</footer>
+
+
+
+    
+<div class="pswp" tabindex="-1" role="dialog" aria-hidden="true">
+
+    
+    <div class="pswp__bg"></div>
+
+    
+    <div class="pswp__scroll-wrap">
+
+        
+        <div class="pswp__container">
+            <div class="pswp__item"></div>
+            <div class="pswp__item"></div>
+            <div class="pswp__item"></div>
+        </div>
+
+        
+        <div class="pswp__ui pswp__ui--hidden">
+
+            <div class="pswp__top-bar">
+
+                
+
+                <div class="pswp__counter"></div>
+
+                <button class="pswp__button pswp__button--close" title="Close (Esc)"></button>
+
+                <button class="pswp__button pswp__button--share" title="Share"></button>
+
+                <button class="pswp__button pswp__button--fs" title="Toggle fullscreen"></button>
+
+                <button class="pswp__button pswp__button--zoom" title="Zoom in/out"></button>
+
+                
+                
+                <div class="pswp__preloader">
+                    <div class="pswp__preloader__icn">
+                        <div class="pswp__preloader__cut">
+                            <div class="pswp__preloader__donut"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="pswp__share-modal pswp__share-modal--hidden pswp__single-tap">
+                <div class="pswp__share-tooltip"></div>
+            </div>
+
+            <button class="pswp__button pswp__button--arrow--left" title="Previous (arrow left)">
+            </button>
+
+            <button class="pswp__button pswp__button--arrow--right" title="Next (arrow right)">
+            </button>
+
+            <div class="pswp__caption">
+                <div class="pswp__caption__center"></div>
+            </div>
+
+        </div>
+
+    </div>
+
+</div><script src="./【golang】map 详解_files/photoswipe.min.js" integrity="sha256-ePwmChbbvXbsO02lbM3HoHbSHTHFAeChekF1xKJdleo=" crossorigin="anonymous" defer="">
+            </script><script src="./【golang】map 详解_files/photoswipe-ui-default.min.js" integrity="sha256-UKkzOn/w1mBxRmLLGrSeyB4e1xbrp4xylgAWb3M42pU=" crossorigin="anonymous" defer="">
+            </script><link rel="stylesheet" href="./【golang】map 详解_files/default-skin.css" integrity="sha256-c0uckgykQ9v5k+IqViZOZKc47Jn7KQil4/MP3ySA3F8=" crossorigin="anonymous"><link rel="stylesheet" href="./【golang】map 详解_files/photoswipe.css" integrity="sha256-SBLU4vv6CA6lHsZ1XyTdhyjJxCjPif/TRkjnsyGAGnE=" crossorigin="anonymous">
+
+            </main>
+    
+    
+    
+    <aside class="sidebar right-sidebar sticky">
+        
+            <form action="https://www.ququ123.top/search/" class="search-form widget">
+        <p>
+            <label>搜索</label>
+            <input name="keyword" required="" placeholder="输入关键词...">
+        
+            <button title="搜索">
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-search" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"></path>
+  <circle cx="10" cy="10" r="7"></circle>
+  <line x1="21" y1="21" x2="15" y2="15"></line>
+</svg>
+
+
+
+            </button>
+        </p>
+    </form>
+        
+            
+    <section class="widget archives">
+        <div class="widget-icon">
+            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-hash" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"></path>
+  <line x1="5" y1="9" x2="19" y2="9"></line>
+  <line x1="5" y1="15" x2="19" y2="15"></line>
+  <line x1="11" y1="4" x2="7" y2="20"></line>
+  <line x1="17" y1="4" x2="13" y2="20"></line>
+</svg>
+
+
+
+        </div>
+        <h2 class="widget-title section-title">目录</h2>
+        
+        <div class="widget--toc">
+            <nav id="TableOfContents">
+  <ol>
+    <li class=""><a href="https://www.ququ123.top/2022/04/golang_map_principle/#%E4%BB%80%E4%B9%88%E6%98%AF-map">什么是 map</a></li>
+    <li class=""><a href="https://www.ququ123.top/2022/04/golang_map_principle/#%E4%B8%BA%E4%BB%80%E4%B9%88%E8%A6%81%E7%94%A8-map">为什么要用 map</a></li>
+    <li class=""><a href="https://www.ququ123.top/2022/04/golang_map_principle/#map-%E7%9A%84%E5%BA%95%E5%B1%82%E5%A6%82%E4%BD%95%E5%AE%9E%E7%8E%B0">map 的底层如何实现</a></li>
+    <li class=""><a href="https://www.ququ123.top/2022/04/golang_map_principle/#map-%E5%86%85%E5%AD%98%E6%A8%A1%E5%9E%8B">map 内存模型</a></li>
+    <li class="active-class"><a href="https://www.ququ123.top/2022/04/golang_map_principle/#%E5%88%9B%E5%BB%BA-map">创建 map</a></li>
+    <li class=""><a href="https://www.ququ123.top/2022/04/golang_map_principle/#%E5%93%88%E5%B8%8C%E5%87%BD%E6%95%B0">哈希函数</a></li>
+    <li class=""><a href="https://www.ququ123.top/2022/04/golang_map_principle/#key-%E5%AE%9A%E4%BD%8D%E8%BF%87%E7%A8%8B">key 定位过程</a></li>
+    <li class=""><a href="https://www.ququ123.top/2022/04/golang_map_principle/#map-%E7%9A%84%E4%B8%A4%E7%A7%8D-get-%E6%93%8D%E4%BD%9C">map 的两种 get 操作</a></li>
+    <li class=""><a href="https://www.ququ123.top/2022/04/golang_map_principle/#%E5%A6%82%E4%BD%95%E8%BF%9B%E8%A1%8C%E6%89%A9%E5%AE%B9">如何进行扩容</a></li>
+    <li class=""><a href="https://www.ququ123.top/2022/04/golang_map_principle/#map-%E7%9A%84%E9%81%8D%E5%8E%86">map 的遍历</a></li>
+    <li class=""><a href="https://www.ququ123.top/2022/04/golang_map_principle/#map-%E7%9A%84%E8%B5%8B%E5%80%BC">map 的赋值</a></li>
+    <li><a href="https://www.ququ123.top/2022/04/golang_map_principle/#map-%E8%BF%9B%E9%98%B6">map 进阶</a></li>
+    <li class=""><a href="https://www.ququ123.top/2022/04/golang_map_principle/#%E5%8F%AF%E4%BB%A5%E8%BE%B9%E9%81%8D%E5%8E%86%E8%BE%B9%E5%88%A0%E9%99%A4%E5%90%97">可以边遍历边删除吗</a></li>
+    <li class=""><a href="https://www.ququ123.top/2022/04/golang_map_principle/#key-%E5%8F%AF%E4%BB%A5%E6%98%AF-float-%E5%9E%8B%E5%90%97">key 可以是 float 型吗？</a></li>
+    <li><a href="https://www.ququ123.top/2022/04/golang_map_principle/#%E6%80%BB%E7%BB%93">总结</a></li>
+    <li class=""><a href="https://www.ququ123.top/2022/04/golang_map_principle/#%E5%8F%82%E8%80%83%E8%B5%84%E6%96%99">参考资料</a></li>
+  </ol>
+</nav>
+        </div>
+    </section>
+
+        
+            <section class="widget categories">
+        <div class="widget-icon">
+            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-infinity" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"></path>
+  <path d="M9.828 9.172a4 4 0 1 0 0 5.656 a10 10 0 0 0 2.172 -2.828a10 10 0 0 1 2.172 -2.828 a4 4 0 1 1 0 5.656a10 10 0 0 1 -2.172 -2.828a10 10 0 0 0 -2.172 -2.828"></path>
+</svg>
+
+
+  
+        </div> 
+        <h2 class="widget-title section-title">Categories</h2>
+    <div class="widget-categories--list">
+<div class="widget">
+    <h3 class="widget-title"> </h3>
+    <div class="widget-body">
+        <div class="category-list">
+            <div class="category-list-item"><a href="http://www.ququ123.top/categories/dict/" class="category-list-link">dict<span class="category-list-count">1</span></a>
+            </div>
+            <div class="category-list-item"><a href="http://www.ququ123.top/categories/golang/" class="category-list-link">golang<span class="category-list-count">21</span></a>
+            </div>
+            <div class="category-list-item"><a href="http://www.ququ123.top/categories/homeassistant/" class="category-list-link">homeassistant<span class="category-list-count">1</span></a>
+            </div>
+            <div class="category-list-item"><a href="http://www.ququ123.top/categories/http/" class="category-list-link">http<span class="category-list-count">2</span></a>
+            </div>
+            <div class="category-list-item"><a href="http://www.ququ123.top/categories/hugo/" class="category-list-link">hugo<span class="category-list-count">2</span></a>
+            </div>
+            <div class="category-list-item"><a href="http://www.ququ123.top/categories/intset/" class="category-list-link">intset<span class="category-list-count">1</span></a>
+            </div>
+            <div class="category-list-item"><a href="http://www.ququ123.top/categories/io/" class="category-list-link">io<span class="category-list-count">2</span></a>
+            </div>
+            <div class="category-list-item"><a href="http://www.ququ123.top/categories/k3s/" class="category-list-link">k3s<span class="category-list-count">1</span></a>
+            </div>
+            <div class="category-list-item"><a href="http://www.ququ123.top/categories/k3sup/" class="category-list-link">k3sup<span class="category-list-count">1</span></a>
+            </div>
+            <div class="category-list-item"><a href="http://www.ququ123.top/categories/k8s/" class="category-list-link">k8s<span class="category-list-count">1</span></a>
+            </div>
+            <div class="category-list-item"><a href="http://www.ququ123.top/categories/katex/" class="category-list-link">katex<span class="category-list-count">1</span></a>
+            </div>
+            <div class="category-list-item"><a href="http://www.ququ123.top/categories/linux/" class="category-list-link">linux<span class="category-list-count">2</span></a>
+            </div>
+            <div class="category-list-item"><a href="http://www.ququ123.top/categories/mysql/" class="category-list-link">mysql<span class="category-list-count">3</span></a>
+            </div>
+            <div class="category-list-item"><a href="http://www.ququ123.top/categories/netpoller/" class="category-list-link">netpoller<span class="category-list-count">1</span></a>
+            </div>
+            <div class="category-list-item"><a href="http://www.ququ123.top/categories/pipe/" class="category-list-link">pipe<span class="category-list-count">1</span></a>
+            </div>
+            <div class="category-list-item"><a href="http://www.ququ123.top/categories/quicklist/" class="category-list-link">quicklist<span class="category-list-count">1</span></a>
+            </div>
+            <div class="category-list-item"><a href="http://www.ququ123.top/categories/raft/" class="category-list-link">raft<span class="category-list-count">1</span></a>
+            </div>
+            <div class="category-list-item"><a href="http://www.ququ123.top/categories/redis/" class="category-list-link">redis<span class="category-list-count">10</span></a>
+            </div>
+            <div class="category-list-item"><a href="http://www.ququ123.top/categories/robj/" class="category-list-link">robj<span class="category-list-count">1</span></a>
+            </div>
+            <div class="category-list-item"><a href="http://www.ququ123.top/categories/sds/" class="category-list-link">sds<span class="category-list-count">1</span></a>
+            </div>
+            <div class="category-list-item"><a href="http://www.ququ123.top/categories/skiplist/" class="category-list-link">skiplist<span class="category-list-count">1</span></a>
+            </div>
+            <div class="category-list-item"><a href="http://www.ququ123.top/categories/tcp/" class="category-list-link">tcp<span class="category-list-count">1</span></a>
+            </div>
+            <div class="category-list-item"><a href="http://www.ququ123.top/categories/type/" class="category-list-link">type<span class="category-list-count">1</span></a>
+            </div>
+            <div class="category-list-item"><a href="http://www.ququ123.top/categories/wireguard/" class="category-list-link">wireguard<span class="category-list-count">1</span></a>
+            </div>
+            <div class="category-list-item"><a href="http://www.ququ123.top/categories/zero-copy/" class="category-list-link">zero-copy<span class="category-list-count">1</span></a>
+            </div>
+            <div class="category-list-item"><a href="http://www.ququ123.top/categories/zero_copy/" class="category-list-link">zero_copy<span class="category-list-count">1</span></a>
+            </div>
+            <div class="category-list-item"><a href="http://www.ququ123.top/categories/ziplist/" class="category-list-link">ziplist<span class="category-list-count">1</span></a>
+            </div>
+            <div class="category-list-item"><a href="http://www.ququ123.top/categories/%E5%88%86%E5%B8%83%E5%BC%8F/" class="category-list-link">分布式<span class="category-list-count"> 1</span></a>
+            </div>
+            <div class="category-list-item"><a href="http://www.ququ123.top/categories/%E5%8D%97%E7%93%9C%E4%B9%A6/" class="category-list-link">南瓜书<span class="category-list-count"> 17</span></a>
+            </div>
+            <div class="category-list-item"><a href="http://www.ququ123.top/categories/%E5%8E%9F%E7%90%86/" class="category-list-link">原理<span class="category-list-count"> 7</span></a>
+            </div>
+            <div class="category-list-item"><a href="http://www.ququ123.top/categories/%E5%90%B4%E6%81%A9%E8%BE%BE/" class="category-list-link">吴恩达<span class="category-list-count"> 10</span></a>
+            </div>
+            <div class="category-list-item"><a href="http://www.ququ123.top/categories/%E5%B0%8F%E7%B1%B3/" class="category-list-link">小米<span class="category-list-count"> 1</span></a>
+            </div>
+            <div class="category-list-item"><a href="http://www.ququ123.top/categories/%E6%94%AF%E4%BB%98/" class="category-list-link">支付<span class="category-list-count"> 1</span></a>
+            </div>
+            <div class="category-list-item"><a href="http://www.ququ123.top/categories/%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84/" class="category-list-link">数据结构<span class="category-list-count"> 7</span></a>
+            </div>
+            <div class="category-list-item"><a href="http://www.ququ123.top/categories/%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0/" class="category-list-link">机器学习<span class="category-list-count"> 27</span></a>
+            </div>
+            <div class="category-list-item"><a href="http://www.ququ123.top/categories/%E7%BD%91%E7%BB%9C/" class="category-list-link">网络<span class="category-list-count"> 1</span></a>
+            </div>
+            <div class="category-list-item"><a href="http://www.ququ123.top/categories/%E9%9D%A2%E8%AF%95/" class="category-list-link">面试<span class="category-list-count"> 1</span></a>
+            </div>
+        </div>
+    </div>
+</div>
+    </div>
+    </section>
+        
+            <section class="widget archives">
+        <div class="widget-icon">
+            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-infinity" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"></path>
+  <path d="M9.828 9.172a4 4 0 1 0 0 5.656 a10 10 0 0 0 2.172 -2.828a10 10 0 0 1 2.172 -2.828 a4 4 0 1 1 0 5.656a10 10 0 0 1 -2.172 -2.828a10 10 0 0 0 -2.172 -2.828"></path>
+</svg>
+
+
+
+        </div>
+        <h2 class="widget-title section-title">归档</h2>
+
+        
+        
+        
+        
+        
+        <div class="widget-archive--list">
+            <div class="archives-year">
+                    <a href="https://www.ququ123.top/archives/#2024">
+                        
+                            <span class="year">2024</span>
+                            <span class="count">16</span>
+                        
+                    </a> 
+                </div>
+            <div class="archives-year">
+                    <a href="https://www.ququ123.top/archives/#2023">
+                        
+                            <span class="year">2023</span>
+                            <span class="count">31</span>
+                        
+                    </a> 
+                </div>
+            <div class="archives-year">
+                    <a href="https://www.ququ123.top/archives/#2022">
+                        
+                            <span class="year">2022</span>
+                            <span class="count">22</span>
+                        
+                    </a> 
+                </div>
+            
+        </div>
+    </section>
+        
+            <section class="widget tagCloud">
+    <div class="widget-icon">
+        <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-tag" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"></path>
+  <path d="M11 3L20 12a1.5 1.5 0 0 1 0 2L14 20a1.5 1.5 0 0 1 -2 0L3 11v-4a4 4 0 0 1 4 -4h4"></path>
+  <circle cx="9" cy="9" r="2"></circle>
+</svg>
+
+
+
+    </div>
+    <h2 class="widget-title section-title">标签云</h2>
+
+    <div class="tagCloud-tags">
+        
+    </div>
+</section>
+        
+    </aside>
+
+
+        </div>
+        <script src="./【golang】map 详解_files/vibrant.min.js" integrity="sha256-5NovOZc4iwiAWTYIFiIM7DxKUXKWvpVEuMEPLzcm5/g=" crossorigin="anonymous">
+            </script><script type="text/javascript" src="./【golang】map 详解_files/main.js" defer=""></script>
+<script>
+    (function () {
+        const customFont = document.createElement('link');
+        customFont.href = "https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700&display=swap";
+
+        customFont.type = "text/css";
+        customFont.rel = "stylesheet";
+
+        document.head.appendChild(customFont);
+    }());
+</script>
+
+    
+
+<div id="waifu-toggle">
+            <span>看板娘</span>
+        </div><div id="waifu" style="bottom: 0px;">
+            <div id="waifu-tips" class="">欢迎阅读<span>「【golang】map 详解」</span></div>
+            <canvas id="live2d" width="800" height="800"></canvas>
+            <div id="waifu-tool"><span id="waifu-tool-hitokoto"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M512 240c0 114.9-114.6 208-256 208c-37.1 0-72.3-6.4-104.1-17.9c-11.9 8.7-31.3 20.6-54.3 30.6C73.6 471.1 44.7 480 16 480c-6.5 0-12.3-3.9-14.8-9.9c-2.5-6-1.1-12.8 3.4-17.4l0 0 0 0 0 0 0 0 .3-.3c.3-.3 .7-.7 1.3-1.4c1.1-1.2 2.8-3.1 4.9-5.7c4.1-5 9.6-12.4 15.2-21.6c10-16.6 19.5-38.4 21.4-62.9C17.7 326.8 0 285.1 0 240C0 125.1 114.6 32 256 32s256 93.1 256 208z"></path></svg></span><span id="waifu-tool-asteroids"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M498.1 5.6c10.1 7 15.4 19.1 13.5 31.2l-64 416c-1.5 9.7-7.4 18.2-16 23s-18.9 5.4-28 1.6L277.3 424.9l-40.1 74.5c-5.2 9.7-16.3 14.6-27 11.9S192 499 192 488V392c0-5.3 1.8-10.5 5.1-14.7L362.4 164.7c2.5-7.1-6.5-14.3-13-8.4L170.4 318.2l-32 28.9 0 0c-9.2 8.3-22.3 10.6-33.8 5.8l-85-35.4C8.4 312.8 .8 302.2 .1 290s5.5-23.7 16.1-29.8l448-256c10.7-6.1 23.9-5.5 34 1.4z"></path></svg></span><span id="waifu-tool-switch-model"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M399 384.2C376.9 345.8 335.4 320 288 320H224c-47.4 0-88.9 25.8-111 64.2c35.2 39.2 86.2 63.8 143 63.8s107.8-24.7 143-63.8zM512 256c0 141.4-114.6 256-256 256S0 397.4 0 256S114.6 0 256 0S512 114.6 512 256zM256 272c39.8 0 72-32.2 72-72s-32.2-72-72-72s-72 32.2-72 72s32.2 72 72 72z"></path></svg></span><span id="waifu-tool-switch-texture"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M320 64c0-35.3-28.7-64-64-64s-64 28.7-64 64s28.7 64 64 64s64-28.7 64-64zm-96 96c-35.3 0-64 28.7-64 64v48c0 17.7 14.3 32 32 32h1.8l11.1 99.5c1.8 16.2 15.5 28.5 31.8 28.5h38.7c16.3 0 30-12.3 31.8-28.5L318.2 304H320c17.7 0 32-14.3 32-32V224c0-35.3-28.7-64-64-64H224zM132.3 394.2c13-2.4 21.7-14.9 19.3-27.9s-14.9-21.7-27.9-19.3c-32.4 5.9-60.9 14.2-82 24.8c-10.5 5.3-20.3 11.7-27.8 19.6C6.4 399.5 0 410.5 0 424c0 21.4 15.5 36.1 29.1 45c14.7 9.6 34.3 17.3 56.4 23.4C130.2 504.7 190.4 512 256 512s125.8-7.3 170.4-19.6c22.1-6.1 41.8-13.8 56.4-23.4c13.7-8.9 29.1-23.6 29.1-45c0-13.5-6.4-24.5-14-32.6c-7.5-7.9-17.3-14.3-27.8-19.6c-21-10.6-49.5-18.9-82-24.8c-13-2.4-25.5 6.3-27.9 19.3s6.3 25.5 19.3 27.9c30.2 5.5 53.7 12.8 69 20.5c3.2 1.6 5.8 3.1 7.9 4.5c3.6 2.4 3.6 7.2 0 9.6c-8.8 5.7-23.1 11.8-43 17.3C374.3 457 318.5 464 256 464s-118.3-7-157.7-17.9c-19.9-5.5-34.2-11.6-43-17.3c-3.6-2.4-3.6-7.2 0-9.6c2.1-1.4 4.8-2.9 7.9-4.5c15.3-7.7 38.8-14.9 69-20.5z"></path></svg></span><span id="waifu-tool-photo"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M220.6 121.2L271.1 96 448 96v96H333.2c-21.9-15.1-48.5-24-77.2-24s-55.2 8.9-77.2 24H64V128H192c9.9 0 19.7-2.3 28.6-6.8zM0 128V416c0 35.3 28.7 64 64 64H448c35.3 0 64-28.7 64-64V96c0-35.3-28.7-64-64-64H271.1c-9.9 0-19.7 2.3-28.6 6.8L192 64H160V48c0-8.8-7.2-16-16-16H80c-8.8 0-16 7.2-16 16l0 16C28.7 64 0 92.7 0 128zM344 304c0 48.6-39.4 88-88 88s-88-39.4-88-88s39.4-88 88-88s88 39.4 88 88z"></path></svg></span><span id="waifu-tool-info"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M256 512c141.4 0 256-114.6 256-256S397.4 0 256 0S0 114.6 0 256S114.6 512 256 512zM216 336h24V272H216c-13.3 0-24-10.7-24-24s10.7-24 24-24h48c13.3 0 24 10.7 24 24v88h8c13.3 0 24 10.7 24 24s-10.7 24-24 24H216c-13.3 0-24-10.7-24-24s10.7-24 24-24zm40-144c-17.7 0-32-14.3-32-32s14.3-32 32-32s32 14.3 32 32s-14.3 32-32 32z"></path></svg></span><span id="waifu-tool-quit"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M310.6 150.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0L160 210.7 54.6 105.4c-12.5-12.5-32.8-12.5-45.3 0s-12.5 32.8 0 45.3L114.7 256 9.4 361.4c-12.5 12.5-12.5 32.8 0 45.3s32.8 12.5 45.3 0L160 301.3 265.4 406.6c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L205.3 256 310.6 150.6z"></path></svg></span></div>
+        </div></body></html>
