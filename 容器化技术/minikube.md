@@ -141,6 +141,20 @@ container (容器) 的本质是进程，而 pod 是管理这一组进程的资�
 Pod 是 Kubernetes 中最基本的部署单元，它提供了一种将相关容器组合在一起、共享资源和网络的方式。Pod 提供了一种逻辑上的抽象，使得容器可以作为一个整体进行管理和调度。
 
 ### 创建nginx的pod
+```yaml
+apiVersion: v1
+kind: Pod # 定义Kubernetes资源的类型为Pod
+metadata:
+  name: demo-web # 定义资源的名称
+  labels: # 为Pod贴上标签，后面会介绍其用处
+    app: demo-web # 这个标签用于标识这个Pod属于哪个应用。在实际应用中，可以使用这个标签来组织和筛选所有属于demo-web应用的资源，例如Pods、Services等。
+spec: # 定义资源的状态，对于Pod来说，最重要属性就是containers
+  containers: # containers一个数组类型，如果你希望部署多个容器，可以添加多项
+    - name: web # 定义本Pod中该容器的名称
+      image: rainingnight/aspnetcore-web # 定义Pod启动的容器镜像地址
+      ports:
+        - containerPort: 80 # 定义容器监听的端口（与Dockerfile中的EXPOSE类似，只是为了提供文档信息）
+```
 
 ```yaml
 # nginx.yaml
