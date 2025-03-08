@@ -1,6 +1,6 @@
 package main
 
-func maxProfit(prices []int) int {
+func maxProfit121(prices []int) int {
 	if len(prices) < 2 {
 		return 0
 	}
@@ -14,7 +14,4 @@ func maxProfit(prices []int) int {
 		}
 	}
 	return res
-}
-func main() {
-
 }
