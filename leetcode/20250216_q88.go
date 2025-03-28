@@ -2,16 +2,16 @@ package main
 
 import "fmt"
 
-func main() {
+func main111() {
 	var num1 = []int{2, 0}
 	var num2 = []int{1}
 	var m = 1
 	var n = 1
-	merge(num1, m, num2, n)
+	merge88(num1, m, num2, n)
 	fmt.Println(num1)
 }
 
-func merge(nums1 []int, m int, nums2 []int, n int) {
+func merge88(nums1 []int, m int, nums2 []int, n int) {
 	var i1 = m - 1
 	var j1 = n - 1
 	if n == 0 {
