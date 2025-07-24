@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"io"
 	"net/http"
 )
@@ -10,6 +11,6 @@ func hello(w http.ResponseWriter, r *http.Request) {
 }
 
 func main() {
-	http.HandleFunc("/", hello)
-	http.ListenAndServe(":3000", nil)
+	var a = []int{1, 2}
+	fmt.Println(a[2:])
 }
