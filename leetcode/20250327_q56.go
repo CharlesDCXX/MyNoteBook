@@ -5,7 +5,7 @@ import (
 	"sort"
 )
 
-func main() {
+func main12() {
 	var inter = [][]int{[]int{2, 3}, []int{5, 5}, []int{2, 2}, []int{3, 4}, []int{3, 4}}
 	fmt.Println(merge(inter))
 }

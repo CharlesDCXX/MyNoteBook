@@ -1,11 +1,5 @@
 package main
 
-import "fmt"
-
-func main() {
-	var nums = []int{3, 0, 6, 1, 5}
-	fmt.Println(hIndex(nums))
-}
 func hIndex(citations []int) int {
 	if len(citations) == 1 {
 		if citations[0] >= 1 {
